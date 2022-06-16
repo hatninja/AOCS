@@ -1,6 +1,6 @@
 local server = {}
 
-local RATE      = 1/10
+local RATE      = 1/9
 local MAXLISTEN = 1024 --Maximum connected clients.
 local MAXSEND   = 2048 --Bytes to send per-update.
 local MAXREAD   = 2048 --Bytes to read per-update.
@@ -73,6 +73,7 @@ function server.loop(self)
 			end
 		end
 
+		self.closed[sock] = nil
 		self.sockets[sock] = nil
 		self.buf[sock] = nil
 		self.got[sock] = nil
