@@ -5,19 +5,21 @@ local GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 function web.generateResponse(req)
 	if req == "" or req:sub(1,3) ~= "GET" then return end
-	
-	local key = string.match(req,"Sec%-WebSocket%-Key: (%S+)")
+
+	local key = string.match(req,"Sec%-WebSocket%-Key: (.-)\r\n")
 	if not key then return end
-	
+
 	local hash = sha1.binary(key..GUID) --Should be 20 bytes.
 	local b64e = mime.b64(hash)
-	
+
+	--Optional information.
+	local user_agent = string.match(req,"User-Agent: (.-)\r\n")
+
 	return "HTTP/1.1 101 Switching Protocols\r\n"
-			.."Upgrade: websocket\r\n"
-			.."Connection: Upgrade\r\n"
-			.."Sec-WebSocket-Accept: "
-			..b64e
-			.."\r\n\r\n"
+		 .."Upgrade: websocket\r\n"
+		 .."Connection: Upgrade\r\n"
+		 .."Sec-WebSocket-Accept: "..b64e
+		 .."\r\n\r\n", user_agent
 end
 
 --TODO: test
