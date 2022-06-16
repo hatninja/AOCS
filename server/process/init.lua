@@ -14,15 +14,16 @@ function process:init()
 
 	self.modules = {}
 
-	self.characters = data.readList("./Config/Characters.txt")
-	self.music = data.readList("./Config/Music.txt")
-
 	self.areas = {}
 	self.replay = {}
 
+	self:resetConfig()
+end
 
-
-
+function process:resetConfig()
+	config          = data.readConf("./Config/Config.txt")
+	self.characters = data.readList("./Config/Characters.txt")
+	self.music      = data.readList("./Config/Music.txt")
 end
 
 function process:update()
@@ -30,10 +31,9 @@ function process:update()
 	self.clock = os.clock()
 
 	self.time = self.time + delta
-
 end
 
-function process:updateClient()
+function process:updateClient(sock)
 
 end
 

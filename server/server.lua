@@ -1,7 +1,7 @@
 local server = {}
 
 local RATE      = 1/9
-local MAXLISTEN = 1024 --Maximum connected clients.
+local MAXLISTEN = 128 --Maximum connected clients.
 local MAXSEND   = 2048 --Bytes to send per-update.
 local MAXREAD   = 2048 --Bytes to read per-update.
 
@@ -24,8 +24,6 @@ function server.listen(self, ip, port)
 end
 function server.close(self)
 	if not self.socket then return end
-	for i,sock in ipairs(self.sockets) do
-	end
 	self.socket:close()
 	self.socket=nil
 end
@@ -34,7 +32,7 @@ function server.send(self, sock, msg)
 	self.buf[sock] = self.buf[sock] .. msg
 end
 
-function server.loop(self)
+function server.update(self)
 	--Select sockets which are open to receiving/sending data.
 	local recv_t,send_t,err = socket.select(self.sockets,self.sockets, RATE)
 
@@ -50,6 +48,9 @@ function server.loop(self)
 	--Update clients.
 	for i,sock in ipairs(self.sockets) do
 		protocol:updateClient(sock)
+	end
+	for i,sock in ipairs(self.sockets) do
+		process:updateClient(sock)
 	end
 
 	--Send buffered data to clients.
@@ -96,13 +97,6 @@ function server.loop(self)
 			end
 		until not connection
 	end
-end
-
-function server.start(self)
-	repeat
-		self:loop()
-		process:update()
-	until not self.socket and #self.sockets == 0
 end
 
 return server
