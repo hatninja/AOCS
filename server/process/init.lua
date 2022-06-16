@@ -7,6 +7,8 @@ function process:init()
 	self.clock = os.clock()
 	self.launched = os.time()
 
+	self.count = 0
+
 	self.clients = {}
 	self.sessions = {}
 
@@ -17,6 +19,8 @@ function process:init()
 
 	self.areas = {}
 	self.replay = {}
+
+
 
 
 end
@@ -33,8 +37,9 @@ function process:updateClient()
 
 end
 
-function process:get()
-
+function process:get(sock,head,...)
+	if head == "INFO" then protocol:send(sock,"INFO") end
+	if head == "JOIN" then protocol:send(sock,"JOIN") end
 end
 
 function process:newClient()
