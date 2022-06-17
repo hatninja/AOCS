@@ -5,69 +5,87 @@ function protocol.init(self)
 end
 
 function protocol.acceptClient(self,sock)
+	print("New Connection!:",sock)
 	self.storage[sock] = {
-		new=true
+		new=true,
+		web=true,
 	}
 end
 function protocol.closeClient(self,sock)
+	print("Closed Connection!:",sock)
 	self.storage[sock] = nil
 end
 
 function protocol.updateClient(self,sock)
 	local storage = self.storage[sock]
-	--New connection, handle web handshake.
-	if storage.new then
-		local reply = web.generateResponse(server.got[sock])
+
+	--New connection, check for websocket handshake.
+	if storage.new and storage.web then
+		local reply, user_agent = web.generateResponse(server.got[sock])
 		if reply then
+			--print("Upgrade Request: [["..server.got[sock].."]]")
 			storage.web = ""
+			storage.user_agent = user_agent
 			server.buf[sock] = reply
-			server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)")
+			--server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)")
+			server.got[sock] = ""
+		else
+			print("Not Web!")
 		end
-		storage.new=false
 	end
 
+	--Decode websocket packets.
 	if storage.web then
 		repeat
 			local data, op, masked, fin, packetlength = web.decode(server.got[sock])
-			if data then
-				if op <= 2 then
-					storage.web = storage.web .. data
+			if op == 0 or op == 1 or op == 2 then
+				storage.web = storage.web .. data
 
-				elseif op == 9 then --PING
-					local pong = web.encode(data,10,false,true)
-					sock:send(pong,1,#pong)
-				end
+			elseif op == 9 then --PING
+				local pong = web.encode(data,10,false,true)
+				sock:send(pong,1,#pong)
 
-				if #server.got[sock]-packetlength >= 0 then
-					server.got[sock] = server.got[sock]:sub(packetlength+1,-1)
-				else
-					break
-				end
-			end
-			if op == 8 then --Client wants to close
+			elseif op == 8 then --Client wants to close
 				sock:close()
-				return
+				break
+			end
+			if #server.got[sock]-(packetlength or 0) >= 0 then
+				server.got[sock] = server.got[sock]:sub((packetlength or 0)+1,-1)
 			end
 		until not op
 	end
 
+	--Send handshakes to new clients.
+	if storage.new then
+		self:readAO(sock,"new") --For organization's sake, send to input table.
+		storage.new = false
+	end
+
+	--Read data in AO protocol.
 	local data = storage.web or server.got[sock]
 	local p = 1
 
 	repeat
-		local packet = string.match(data,"([^%%]+)",p)
+		local packet = string.match(data,"%#?([^%%]+)",p)
 		if packet then
-			local args = split(packet,"%#")
-			self:readpacket(sock,unpack(args))
-			p = string.find(data,"%",p,true)+1
+			self:readAO(sock, unpack(split(packet,"%#")) )
+			p = (string.find(data,"%",p,true) or 0)+1
 		end
 	until not packet
 
 	if storage.web then
-		storage.web = storage.web:sub(p+1,-1)
+		storage.web = storage.web:sub(p,-1)
 	else
-		server.got[sock] = server.got[sock]:sub(p+1,-1)
+		server.got[sock] = server.got[sock]:sub(p,-1)
 	end
+end
+function protocol.buffer(self,sock, msg)
+	local data = msg
+	if self.storage[sock].web then
+		data = web.encode(msg,1,false,true)
+	end
+	print("Sent: ",data)
+	server:send(sock, data)
 end
 
 --Always output a string for safety's sake.
@@ -76,6 +94,7 @@ function protocol.escape(str)
 	:gsub("%$","<dollar>")
 	:gsub("%%","<percent>")
 	:gsub("%&","<and>")
+	:gsub("\\n","\n") --For funsies!
 end
 --Double as validation for empty values.
 function protocol.unescape(str)
@@ -85,97 +104,82 @@ function protocol.unescape(str)
 	:gsub("%<and%>","&")
 end
 
+function protocol.concatAO(t)
+	local c = {}
+	for i,v in ipairs(t) do
+		c[i] = self.escape(v)
+	end
+	return table.concat(c,"#")
+end
+
 local input = {}
-function protocol.readpacket(self,sock,head,...)
+function protocol.readAO(self,sock,head,...)
 	if input[head] then
+		print("Message: \""..head.."\"",...)
 		input[head](self,sock,...)
-	--	return
+		return
 	end
 	print("Unknown Message: \""..head.."\"",...)
 end
 
-input["HI"] = function(self,sock,hdid)
-	self.storage[sock].hdid = hdid
-end
-input["ID"] = function(self,sock,software,version)
-	self.storage[sock].software = software
-	self.storage[sock].version = version
-
+input["new"] = function(self,sock)
 	process:get(sock,"INFO")
 end
-input["CH"] = function(self,sock)
-	if self.storage[sock].done then
-		process:get(sock,"PING")
-	else
-		server:send(sock,"CHECK#%")
-	end
+
+input["HI"] = function(self,sock, hdid)
+	self.storage[sock].hdid = hdid
+end
+input["ID"] = function(self,sock, software,version)
+	self.storage[sock].software = software
+	self.storage[sock].version = version
 end
 
 input["askchaa"] = function(self,sock)
+	if self.storage[sock].done then return end
 	process:get(sock,"JOIN")
 end
 input["RC"] = function(self,sock)
-	local t = {}
-	for i,char in ipairs(process.characters) do
-		t[#t+1] = self.escape(char)
-	end
-	server:send(sock,"SC#"..table.concat(t,"#").."#%")
+	self:buffer(sock,"SC#"..self.concatAO(process.characters).."#%")
 end
 input["RM"] = function(self,sock)
-	local t = {}
-	for i,track in ipairs(process.music) do
-		t[#t+1] = self.escape(track)
-	end
-	server:send(sock,"SM#Status#"..table.concat(t,"#").."#%")
+	self:buffer(sock,"SM#Status#"..self.concatAO(process.music).."#%")
 end
 input["RD"] = function(self,sock)
-	server.send("CharsCheck#0#%")
-	server.send("DONE#%")
+	self:buffer("CharsCheck#0#%")
+	self:buffer("DONE#%")
 	self.storage[sock].done = true
 end
 
---TODO:
---[[Loading 1.0]]
-input["askchar2"] = function(self,client,process,call) --AO2 specific command. Loading is automatically initated by server itself for AO 1.8
-	self:sendAssetList(client,"CI",self.state[client].char_list, 1)
+input["CH"] = function(self,sock)
+	process:get(sock,"PING")
 end
-input["AN"] = function(self,client,process,call, page)
-	self:sendAssetList(client,"CI",self.state[client].char_list, tonumber(page)+1)
+input["CC"] = function(self,sock, pid,id) --Choose Character.
+	process:get(sock,"CHAR", process.characters[tointeger(id) or 0])
 end
-input["AE"] = function(self,client,process,call, page)
-	--No evidence to send.
+input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel) --Play Music
+	process:get(sock,"MUSIC",self.unescape(track))
 end
-input["AM"] = function(self,client,process,call, page) --Used for both so we get the same finishcode.
-end
-
-
---Choose Character.
-input["CC"] = function(self,sock, pid,id)
-	local char_id = tointeger(id) or 0
-	process:get(sock,"CHAR", process.characters[char_id])
-end
---Free Character. (Functionally choose spectator.)
-input["FC"] = function(self,sock)
-	process:get(sock,"CHAR")
-end
-input["PW"] = input["FC"]
-
---Mod Call
-input["ZZ"] = function(self,sock, reason)
+input["ZZ"] = function(self,sock, reason) --Mod Call
 	process:get(sock,"MODPLZ", reason)
 end
+input["DC"] = function(self,sock) --Close Client
+	sock:close()
+end
+input["SP"] = function(self,sock, ...) --Send position
+	process:get(sock,"SIDE",...)
+end
+input["FC"] = function(self,sock) --Free Character. (Functionally choosing spectator.)
+	process:get(sock,"CHAR")
+end; input["PW"] = input["FC"]
 
---OOC Message
-input["CT"] = function(self,sock, name,message)
+input["CT"] = function(self,sock, name,message) --OOC Message
 	process:get(client,"MSG",{
 		name = self.unescape(name),
 		message = self.unescape(message)
 	})
 end
---IC Message (HERE WE GO!)
-input["MS"] = function(self,sock, ...)
+input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local args = {...}
-
 	local desk         = tointeger(args[1]) --"chat" will show as nil.
 	local pre          = self.unescape(args[2])
 	local char         = self.unescape(args[3])
@@ -222,7 +226,6 @@ input["MS"] = function(self,sock, ...)
 			wait   = true,
 		})
 	end
-
 	if pre then
 		process:get(sock,"ANIM",{
 			anim   = pre,
@@ -242,39 +245,11 @@ input["MS"] = function(self,sock, ...)
 		emote   = emote,
 	})
 end
---Play Music
-input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel)
-	process:get(sock,"MUSIC",self.unescape(track))
-end
---HP
-input["HP"] = function(self,sock, side,amount)
-	process:get(sock,"ANIM",{
-		anim   = "HP",
-		side   = side,
-		amount = amount,
-	})
-end
---Woosh effect
-input["RT"] = function(self,sock, ...)
-	process:get(sock,"PRE")
-end
---Close Client
-input["DC"] = function(self,sock)
-	sock:close()
-end
---Send position
-input["SP"] = function(self,sock, ...)
-	process:get(sock,"SIDE",...)
-end
 
---Encryption
+--Default Encrypted Messages. Some clients still use these.
+input["615810BC07D139"] = input["askchaa"]
 input["48E0"] = input["HI"]
 input["493F"] = input["ID"]
-input["615810BC07D139"] = input["askchaa"]
-input["615810BC07D12A5A"] = input["askchar2"]
-input["41A5"] = input["AN"]
-input["41AE"] = input["AE"]
-input["41A6"] = input["AM"]
 input["529E"] = input["RC"]
 input["5290"] = input["RM"]
 input["5299"] = input["RD"]
@@ -284,36 +259,41 @@ input["43C7"] = input["CH"]
 input["43DB"] = input["CT"]
 input["4D90"] = input["MS"]
 input["4D80"] = input["MC"]
-input["48F9"] = input["HP"]
-input["5289"] = input["RT"]
 input["4422"] = input["DC"]
-input["507C"] = input["PE"]
-input["4576"] = input["EE"]
-input["4424"] = input["DE"]
 
 
 local output = {}
-function protocol.send(self,sock,src,head,...)
-	output[head](self,sock,src,...)
-end
-
-output["INFO"] = function(self,sock,src)
-	server:send(sock,"decryptor#34#%")
-	server:send(sock,"PN#"..(process.count).."#0#%")
-	server:send(sock,"ID#0#AOS3#git#%")
-	server:send(sock,"FL#fastloading#noencryption#yellowtext#flipping#deskmod#customobjections#modcall_reason#cccc_ic_support#arup#additive#%")
-	if bool(config.assets) then
-		server:send(sock,"ASS#"..tostring(config.assets).."#%")
+function protocol.send(self,sock,head,...)
+	if output[head] then
+		output[head](self,sock,...)
+	else
+		error("Attempt to send bogus packet! "..tostring(head), 2)
 	end
 end
 
-output["JOIN"] = function(self,sock,src)
-	local chars = #process.characters
-	local musics = #process.music
-	server:send(sock,"SI#"..chars.."#1#"..musics.."#%")
+output["INFO"] = function(self,sock)
+	self:buffer(sock,"decryptor#34#%")
+	self:buffer(sock,"ID#0#AOS3#git#%")
+	self:buffer(sock,"PN#"..(process.count).."#0#"..self.escape(config.description).."%")
+	self:buffer(sock,"FL#fastloading#noencryption#yellowtext#flipping#deskmod#customobjections#modcall_reason#cccc_ic_support#arup#additive#%")
+
+	if bool(config.assets) then
+		self:buffer(sock,"ASS#"..self.escape(config.assets).."#%")
+	end
 end
 
-output["CHAR"] = function(self,sock,src, char)
+output["JOIN"] = function(self,sock)
+	local chars = #process.characters
+	local musics = #process.music+1 --"Status"
+	self:buffer(sock,"SI#"..chars.."#1#"..musics.."#%")
+
+	--input["RC"](self,sock)
+	--input["RM"](self,sock)
+
+	--self:buffer(sock,"DONE#%")
+end
+
+output["CHAR"] = function(self,sock, char)
 	if char then
 		client:bufferraw("PV#0#CID#"..char.."#%")
 		return
@@ -321,11 +301,11 @@ output["CHAR"] = function(self,sock,src, char)
 	client:bufferraw("PV#0#CID#-1#%")
 end
 
-output["DONE"] = function(self,sock,src)
-	server:send(sock,"HP#0#0#%")
+output["DONE"] = function(self,sock)
+	self:buffer(sock,"HP#0#0#%")
 end
 
-output["MSG"] = function(self,sock,src, msg)
+output["MSG"] = function(self,sock, msg)
 	if not msg.char then --OOC
 		return
 	end
@@ -415,18 +395,18 @@ output["MSG"] = function(self,sock,src, msg)
 	t[#t+1] = data.append and 1 or 0
 	t[#t+1] = data.effect or ""
 
-	server:send(sock,ms..table.concat(t,"#").."#%")
+	self:buffer(sock,ms..table.concat(t,"#").."#%")
 end
 
-output["MUSIC"] = function(self,sock,src, track)
-	server:send(sock,"MC#"..self.escape(track).."#-1##1#0#1#%")
+output["MUSIC"] = function(self,sock, track)
+	self:buffer(sock,"MC#"..self.escape(track).."#-1##1#0#1#%")
 end
 
-output["SCENE"] = function(self,sock,src, scene)
-	server:send(sock,"BN#"..self.escape(scene).."#%")
+output["SCENE"] = function(self,sock, scene)
+	self:buffer(sock,"BN#"..self.escape(scene).."#%")
 end
 
-output["ANIM"] = function(self,sock,src, anim)
+output["ANIM"] = function(self,sock, anim)
 	if anim.anim == "witnesstestimony" then
 		server.send(sock,"RT#testimony1#%")
 	elseif anim.anim == "crossexamination" then
@@ -442,25 +422,25 @@ output["ANIM"] = function(self,sock,src, anim)
 end
 
 --Use ping as a way to update information to clients.
-output["PONG"] = function(self,sock,src, side)
+output["PONG"] = function(self,sock, side)
 	--Server Stats in room count and lock status.
-	server:send(sock,"ARUP#0#"..(process.count).."#%")
-	server:send(sock,"ARUP#3#"..(#process.areas).." areas.#%")
+	self:buffer(sock,"ARUP#0#"..(process.count).."#%")
+	self:buffer(sock,"ARUP#3#"..(#process.areas).." areas.#%")
 	--Get current session in room status.
-	server:send(sock,"ARUP#1#Session: ?#%")
+	self:buffer(sock,"ARUP#1#Session: ?#%")
 	--Get current CM in CM.
-	server:send(sock,"ARUP#2#Free#%")
+	self:buffer(sock,"ARUP#2#Free#%")
 end
 
-output["SIDE"] = function(self,sock,src, side)
-	server:send(sock,"SP#"..self.escape(side).."#%")
+output["SIDE"] = function(self,sock, side)
+	self:buffer(sock,"SP#"..self.escape(side).."#%")
 end
 
-output["BAN"] = function(self,sock,src, reason)
-	server:send(sock,"KB#"..self.escape(reason).."#%")
+output["BAN"] = function(self,sock, reason)
+	self:buffer(sock,"KB#"..self.escape(reason).."#%")
 end
-output["NOTICE"] = function(self,sock,src, note)
-	server:send(sock,"BB#"..self.escape(note).."#%")
+output["NOTICE"] = function(self,sock, note)
+	self:buffer(sock,"BB#"..self.escape(note).."#%")
 end
 
 return protocol
