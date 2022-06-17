@@ -89,6 +89,7 @@ function server.update(self)
 			if sock then
 				table.insert(self.sockets,sock)
 
+				sock:settimeout(0)
 				self.sockets[sock] = sock
 				self.buf[sock] = ""
 				self.got[sock] = ""
