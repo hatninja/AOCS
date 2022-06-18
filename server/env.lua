@@ -51,6 +51,8 @@ function clone(tc)
 end
 
 function split(input,delimit)
+	if not input then return end
+
 	local t = {}
 	local pass = 1
 
