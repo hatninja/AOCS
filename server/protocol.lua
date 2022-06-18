@@ -30,6 +30,7 @@ function protocol.updateClient(self,sock)
 			--server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)")
 			server.got[sock] = ""
 		else
+			storage.web = false
 			print("Not Web!")
 		end
 	end
@@ -80,6 +81,8 @@ function protocol.updateClient(self,sock)
 	end
 end
 function protocol.buffer(self,sock, msg)
+	if not sock then error("Socket object is invalid!",2) end
+
 	local data = msg
 	if self.storage[sock].web then
 		data = web.encode(msg,1,false,true)
@@ -107,7 +110,7 @@ end
 function protocol.concatAO(t)
 	local c = {}
 	for i,v in ipairs(t) do
-		c[i] = self.escape(v)
+		c[i] = protocol.escape(tostring(v))
 	end
 	return table.concat(c,"#")
 end
@@ -139,14 +142,14 @@ input["askchaa"] = function(self,sock)
 	process:get(sock,"JOIN")
 end
 input["RC"] = function(self,sock)
-	self:buffer(sock,"SC#"..self.concatAO(process.characters).."#%")
+--	self:buffer(sock,"SC#"..self.concatAO(process.characters).."#%")
 end
 input["RM"] = function(self,sock)
-	self:buffer(sock,"SM#Status#"..self.concatAO(process.music).."#%")
+--	self:buffer(sock,"SM#Status#"..self.concatAO(process.music).."#%")
 end
 input["RD"] = function(self,sock)
-	self:buffer("CharsCheck#0#%")
-	self:buffer("DONE#%")
+	--self:buffer(sock,"CharsCheck#0#%")
+	--self:buffer(sock,"DONE#%")
 	self.storage[sock].done = true
 end
 
@@ -154,9 +157,10 @@ input["CH"] = function(self,sock)
 	process:get(sock,"PING")
 end
 input["CC"] = function(self,sock, pid,id) --Choose Character.
-	process:get(sock,"CHAR", process.characters[tointeger(id) or 0])
+	process:get(sock,"CHAR", process.characters[(tointeger(id) or -1) + 1])
 end
 input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel) --Play Music
+	if track == "Status" then return end
 	process:get(sock,"MUSIC",self.unescape(track))
 end
 input["ZZ"] = function(self,sock, reason) --Mod Call
@@ -168,8 +172,8 @@ end
 input["SP"] = function(self,sock, ...) --Send position
 	process:get(sock,"SIDE",...)
 end
-input["FC"] = function(self,sock) --Free Character. (Functionally choosing spectator.)
-	process:get(sock,"CHAR")
+input["FC"] = function(self,sock) --Free Character.
+	--process:get(sock,"CHAR")
 end; input["PW"] = input["FC"]
 
 input["CT"] = function(self,sock, name,message) --OOC Message
@@ -193,7 +197,7 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local shout        = split(args[11],"%&")
 	local present      = tointeger(args[12])
 	local flip         = tointeger(args[13])
-	local flash        = tointeger(args[14])
+	local realize      = tointeger(args[14])
 	local color        = tointeger(args[15])
 	local name         = self.unescape(args[16])
 	local pair_id      = tointeger(args[17])
@@ -210,8 +214,8 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	if name == "0" then name = nil end
 	if emote == "-" then emote = nil end
 
-	local id_char = process.characters[char_id or 0]
-	local pair = process.characters[pair_id or 0]
+	local id_char = process.characters[(char_id or -1) +1]
+	local pair = process.characters[(pair_id or -1) +1]
 
 	if not bool(emote_mod) or pre == "-" then
 		pre = nil
@@ -226,23 +230,17 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 			wait   = true,
 		})
 	end
-	if pre then
-		process:get(sock,"ANIM",{
-			anim   = pre,
-			char   = char,
-			wait   = true,
-			--length = -1,
-			stop   = not bool(nointerrupt),
-		})
-	end
-
 	process:get(sock,"MSG",{
 		name    = name,
 		message = message,
 
-		char    = char,
 		side    = side,
+		char    = char,
 		emote   = emote,
+		pre     = pre,
+
+		id_char = id_char,
+		author  = sock,
 	})
 end
 
@@ -287,18 +285,26 @@ output["JOIN"] = function(self,sock)
 	local musics = #process.music+1 --"Status"
 	self:buffer(sock,"SI#"..chars.."#1#"..musics.."#%")
 
-	--input["RC"](self,sock)
-	--input["RM"](self,sock)
+	self:buffer(sock,"SC#"..self.concatAO(process.characters).."#%")
+	self:buffer(sock,"SM#Status#"..self.concatAO(process.music).."#%")
 
-	--self:buffer(sock,"DONE#%")
+	self:buffer(sock,"DONE#%")
+
+	self.storage[sock].done = true
+
+	output["PONG"](self,sock)
 end
 
-output["CHAR"] = function(self,sock, char)
-	if char then
-		client:bufferraw("PV#0#CID#"..char.."#%")
-		return
+output["CHAR"] = function(self,sock, id_char)
+	local id = 0
+	for i,v in ipairs(process.characters) do
+		if id_char == v then
+			id = i
+			break
+		end
 	end
-	client:bufferraw("PV#0#CID#-1#%")
+	self:buffer(sock,"PV#0#CID#"..(id-1).."#%")
+	self.storage[sock].char_id = id-1
 end
 
 output["DONE"] = function(self,sock)
@@ -306,96 +312,89 @@ output["DONE"] = function(self,sock)
 end
 
 output["MSG"] = function(self,sock, msg)
-	if not msg.char then --OOC
+	local t = {"MS"}
+
+	if not msg.char then --OOC Message
+		t[1]= "CT"
+		t[2]= msg.name
+		t[3]= msg.message
+		t[4]= msg.server and 1 or nil
+		self:buffer(sock,self.concatAO(t).."#%")
 		return
 	end
-	--IC
-	local ms = "MS#"
-	local t  = {}
-	if client.software == "AO" or client.software == "webAO" then
-		t[#t+1] = "chat"
-	else
-		t[#t+1] = data.desk or data.fg and 1 or 0
-	end
-	t[#t+1] = self:escape(data.pre_emote or "none") --"-" completely disables sound.
-	t[#t+1] = self:escape(data.character or " ")
-	t[#t+1] = self:escape(data.emote or "normal")
-	--Dialogue
-	local dialogue = data.dialogue or ""
-	t[#t+1] = self:escape(dialogue)
-	--Position
-	local side = data.side
-	t[#t+1] = side
-	--Sound name
-	t[#t+1] = data.sfx_name or 1
-	--Emote modification
-	local emote_modifier = 0
-	if not data.no_interrupt then
-		if data.pre_emote then
-			emote_modifier = 1
-		end
-		if data.bg then
-			emote_modifier = 5
-		end
-		if data.interjection and data.interjection ~= 0 then
-			emote_modifier = emote_modifier + 1
-		end
-		if data.sfx_name and data.bg then
-			emote_modifier = 6
-		end
-	end
-	t[#t+1] = emote_modifier
-	local char_id = data.char_id and self:getCharacterId(client, data.char_id) or self:getCharacterId(client, data.character) or -1
-	if char_id == -1 then
-		char_id = 0
-	end
-	t[#t+1] = char_id
-	--Sound delay
-	t[#t+1] = data.sfx_delay or 0
-	--Shout modifier
-	t[#t+1] = data.interjection or 0
-	--Evidence
-	t[#t+1] = data.item or 0
-	--Flip
-	if client.software == "AO" then
-		t[#t+1] = char_id
-	else
-		t[#t+1] = data.flip and 1 or 0
-	end
-	t[#t+1] = data.realization and 1 or 0
-	local text_color = self:tointeger(data.text_color) or 0
-	if client.software == "AO" and text_color == 5 then text_color = 3 end
-	t[#t+1] = text_color
-	--Shownames.
-	t[#t+1] = data.name or ""
-	--Character pairing.
-	local pair_id = data.pair_id and self:getCharacterId(client, data.pair_id) or self:getCharacterId(client, data.pair) or -1
-	if pair_id ~= -1 and data.pair and data.pair_emote then
-		t[#t+1] = pair_id or -1
-		t[#t+1] = data.pair or ""
-		t[#t+1] = data.pair_emote or "-"
-		t[#t+1] = data.hscroll or 0
-		t[#t+1] = data.pair_hscroll or 0
-		t[#t+1] = data.pair_flip and 1 or 0
-		t[#t+1] = data.no_interrupt and 1 or 0
-	else
-		t[#t+1] = -1
-		t[#t+1] = ""
-		t[#t+1] = ""
-		t[#t+1] = 0
-		t[#t+1] = 0
-		t[#t+1] = 0
-		t[#t+1] = 1
-	end
-	t[#t+1] = data.sfx_looping and 1 or 0
-	t[#t+1] = data.shake and 1 or 0
-	t[#t+1] = ""
-	t[#t+1] = ""
-	t[#t+1] = ""
-	t[#t+1] = data.append and 1 or 0
-	t[#t+1] = data.effect or ""
 
-	self:buffer(sock,ms..table.concat(t,"#").."#%")
+	--Pull sound effect to play
+	local sfx = self.storage[sock].sfx
+
+	--IC Message
+	t[#t+1]= "chat"
+	t[#t+1]= msg.pre or "none" --"-" completely disables sound.
+	t[#t+1]= msg.char
+	t[#t+1]= msg.emote
+	local blank = not msg.emote
+
+	t[#t+1]= msg.message or ""
+	t[#t+1]= msg.side
+	t[#t+1]= sfx and sfx.name or 1
+
+	t[#t+1]= 0 --emote_mod
+
+	--If this client is the author, match client's char_id to clear message.
+	if msg.author == sock then
+		t[#t+1]= self.storage[sock].char_id or 0
+	else
+		local id = msg.id_char or 0
+		for i,v in ipairs(process.characters) do
+			if v == msg.id_char then
+				id = (i-1)
+				break
+			end
+		end
+		if id == self.storage[sock].char_id then
+			id = (id+1) % #process.characters
+		end
+		t[#t+1]= id
+	end
+
+	t[#t+1]= sfx and sfx.delay or 0
+	t[#t+1]= 0 --interject
+
+	t[#t+1]= 0 --Evidence
+	t[#t+1]= msg.flip and 1 or 0
+
+	t[#t+1]= msg.realize and 1 or 0
+	t[#t+1]= msg.color or 0
+
+	t[#t+1]= msg.name or ""
+
+	if blank then
+		t[#t+1]= 0
+		t[#t+1]= ""
+		t[#t+1]= "-"
+		t[#t+1]= "100"
+		t[#t+1]= "100"
+		t[#t+1]= 0
+	else
+		t[#t+1]= -1
+		t[#t+1]= ""
+		t[#t+1]= ""
+		t[#t+1]= 0
+		t[#t+1]= 0
+		t[#t+1]= 0
+	end
+	t[#t+1]= 1 --no_interrupt
+	t[#t+1]= (sfx and sfx.looping) and 1 or 0 --looping_sfx
+	t[#t+1]= 1 --shake
+ 	t[#t+1]= ""
+	t[#t+1]= "" --The emote stuff.
+	t[#t+1]= ""
+	t[#t+1]= msg.append and 1 or 0
+	t[#t+1]= msg.effect or ""
+
+	self:buffer(sock,self.concatAO(t).."#%")
+
+	self.storage[sock].lastmsg = msg
+	self.storage[sock].sfx = nil
 end
 
 output["MUSIC"] = function(self,sock, track)
@@ -406,28 +405,42 @@ output["SCENE"] = function(self,sock, scene)
 	self:buffer(sock,"BN#"..self.escape(scene).."#%")
 end
 
-output["ANIM"] = function(self,sock, anim)
-	if anim.anim == "witnesstestimony" then
+output["ANI"] = function(self,sock, ani)
+	if ani.name == "witnesstestimony" then
 		server.send(sock,"RT#testimony1#%")
-	elseif anim.anim == "crossexamination" then
+	elseif ani.name == "crossexamination" then
 		server.send(sock,"RT#testimony2#%")
-	elseif anim.anim == "clear_testimony" then
+	elseif ani.name == "clear_testimony" then
 		server.send(sock,"RT#testimony1#1#%")
-	elseif anim.anim == "add_testimony" then
+	elseif ani.name == "add_testimony" then
 		server.send(sock,"RT#testimony1#0#%")
 		server.send(sock,"RT#-#%")
-	elseif anim.anim == "splash" then
-		server.send(sock,"RT#"..anim.dir.."#%")
+	else
+		server.send(sock,"RT#"..self.escape(ani.name) or "-#%")
 	end
+end
+
+output["SFX"] = function(self,sock, sfx)
+	self.storage[sock].sfx = sfx
+
+	if sfx.wait then return end
+	--SFX only plays on emotes, so send an empty message to play immediately.
+
+	local msg = self.storage[sock].lastmsg or {char = "",name = ""}
+	msg.pre     = nil
+	msg.message = nil
+	msg.append  = true
+
+	output["MSG"](self,sock, msg)
 end
 
 --Use ping as a way to update information to clients.
 output["PONG"] = function(self,sock, side)
 	--Server Stats in room count and lock status.
 	self:buffer(sock,"ARUP#0#"..(process.count).."#%")
-	self:buffer(sock,"ARUP#3#"..(#process.areas).." areas.#%")
+	self:buffer(sock,"ARUP#3#"..(#process.areas).." areas#%")
 	--Get current session in room status.
-	self:buffer(sock,"ARUP#1#Session: ?#%")
+	self:buffer(sock,"ARUP#1#Session [?]#%")
 	--Get current CM in CM.
 	self:buffer(sock,"ARUP#2#Free#%")
 end

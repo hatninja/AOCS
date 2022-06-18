@@ -45,8 +45,8 @@ function process:get(sock,head,...)
 	if head == "CHAR" then protocol:send(sock,"CHAR",...) end
 	if head == "MSG" then protocol:send(sock,"MSG",...) end
 	if head == "SFX" then protocol:send(sock,"SFX",...) end
-	if head == "MUS" then protocol:send(sock,"MUS",...) end
-	if head == "ANIM" then protocol:send(sock,"ANIM",...) end
+	if head == "ANI" then protocol:send(sock,"ANI",...) end
+	if head == "MUSIC" then protocol:send(sock,"MUSIC",...) end
 end
 
 function process:newClient()
