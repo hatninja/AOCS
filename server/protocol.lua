@@ -177,7 +177,7 @@ input["FC"] = function(self,sock) --Free Character.
 end; input["PW"] = input["FC"]
 
 input["CT"] = function(self,sock, name,message) --OOC Message
-	process:get(client,"MSG",{
+	process:get(sock,"MSG",{
 		name = self.unescape(name),
 		message = self.unescape(message)
 	})
@@ -319,6 +319,7 @@ output["MSG"] = function(self,sock, msg)
 		t[2]= msg.name
 		t[3]= msg.message
 		t[4]= msg.server and 1 or nil
+
 		self:buffer(sock,self.concatAO(t).."#%")
 		return
 	end
@@ -398,7 +399,7 @@ output["MSG"] = function(self,sock, msg)
 end
 
 output["MUSIC"] = function(self,sock, track)
-	self:buffer(sock,"MC#"..self.escape(track).."#-1##1#0#1#%")
+	self:buffer(sock,"MC#"..self.escape(track).."#-1##1#0#2#%")
 end
 
 output["SCENE"] = function(self,sock, scene)
