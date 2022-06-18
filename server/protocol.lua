@@ -202,14 +202,14 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local name         = self.unescape(args[16])
 	local pair_id      = tointeger(args[17])
 	local offset       = split(args[18],"%&")
-	local nointerrupt  = tointeger(args[19])
-	local sfx_looping  = tointeger(args[20])
-	local shake        = tointeger(args[21])
-	local frames_shake = split(args[22],"%&")
-	local frames_flash = split(args[23],"%&")
-	local frames_sfx   = split(args[24],"%&")
-	local append       = tointeger(args[25])
-	local effect       = self.unescape(args[26])
+	local nowait       = tointeger(args[19])
+	--local sfx_looping  = tointeger(args[20])
+	--local shake        = tointeger(args[21])
+	--local frames_shake = split(args[22],"%&")
+	--local frames_flash = split(args[23],"%&")
+	--local frames_sfx   = split(args[24],"%&")
+	local append       = tointeger(args[20]) --25
+	local effect       = self.unescape(args[21]) --26
 
 	if name == "0" then name = nil end
 	if emote == "-" then emote = nil end
@@ -225,8 +225,9 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 
 	if sfx_name then
 		process:get(sock,"SFX",{
-			sfx    = sfx_name,
+			name   = sfx_name,
 			delay  = sfx_delay or 0,
+			looping= sfx_looping,
 			wait   = true,
 		})
 	end
@@ -238,6 +239,12 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 		char    = char,
 		emote   = emote,
 		pre     = pre,
+
+		--Miscellaneous toggles.
+		append  = append,
+		nowait  = nowait,
+		realize = realize,
+		shake   = shake,
 
 		id_char = id_char,
 		author  = sock,
@@ -273,7 +280,7 @@ output["INFO"] = function(self,sock)
 	self:buffer(sock,"decryptor#34#%")
 	self:buffer(sock,"ID#0#AOS3#git#%")
 	self:buffer(sock,"PN#"..(process.count).."#0#"..self.escape(config.description).."%")
-	self:buffer(sock,"FL#fastloading#noencryption#yellowtext#flipping#deskmod#customobjections#modcall_reason#cccc_ic_support#arup#additive#%")
+	self:buffer(sock,"FL#fastloading#noencryption#yellowtext#flipping#deskmod#customobjections#modcall_reason#cccc_ic_support#arup#additive#effects#%")
 
 	if bool(config.assets) then
 		self:buffer(sock,"ASS#"..self.escape(config.assets).."#%")
@@ -308,7 +315,7 @@ output["CHAR"] = function(self,sock, id_char)
 end
 
 output["DONE"] = function(self,sock)
-	self:buffer(sock,"HP#0#0#%")
+	--self:buffer(sock,"HP#0#0#%")
 end
 
 output["MSG"] = function(self,sock, msg)
@@ -338,7 +345,7 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= msg.side
 	t[#t+1]= sfx and sfx.name or 1
 
-	t[#t+1]= 0 --emote_mod
+	t[#t+1]= 1 --emote_mod
 
 	--If this client is the author, match client's char_id to clear message.
 	if msg.author == sock then
@@ -358,12 +365,12 @@ output["MSG"] = function(self,sock, msg)
 	end
 
 	t[#t+1]= sfx and sfx.delay or 0
-	t[#t+1]= 0 --interject
+	t[#t+1]= 0 --Shout (Interjection)
 
 	t[#t+1]= 0 --Evidence
 	t[#t+1]= msg.flip and 1 or 0
 
-	t[#t+1]= msg.realize and 1 or 0
+	t[#t+1]= bool(msg.realize) and 1 or 0
 	t[#t+1]= msg.color or 0
 
 	t[#t+1]= msg.name or ""
@@ -383,13 +390,14 @@ output["MSG"] = function(self,sock, msg)
 		t[#t+1]= 0
 		t[#t+1]= 0
 	end
-	t[#t+1]= 1 --no_interrupt
-	t[#t+1]= (sfx and sfx.looping) and 1 or 0 --looping_sfx
-	t[#t+1]= 1 --shake
- 	t[#t+1]= ""
-	t[#t+1]= "" --The emote stuff.
-	t[#t+1]= ""
-	t[#t+1]= msg.append and 1 or 0
+	t[#t+1]= bool(msg.nowait) and 1 or 0
+	t[#t+1]= (sfx and bool(sfx.looping)) and 1 or 0 --looping_sfx
+	t[#t+1]= bool(msg.shake) and 1 or 0 --shake
+ 	t[#t+1]= "" --Shake
+	t[#t+1]= "" --Flash
+	t[#t+1]= "" --SFX
+
+	t[#t+1]= bool(msg.append) and 1 or 0
 	t[#t+1]= msg.effect or ""
 
 	self:buffer(sock,self.concatAO(t).."#%")
@@ -417,7 +425,7 @@ output["ANI"] = function(self,sock, ani)
 		server.send(sock,"RT#testimony1#0#%")
 		server.send(sock,"RT#-#%")
 	else
-		server.send(sock,"RT#"..self.escape(ani.name) or "-#%")
+		server.send(sock,"RT#"..self.escape(ani.name).."#%")
 	end
 end
 
