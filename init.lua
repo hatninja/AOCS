@@ -28,7 +28,7 @@ local function start()
 	repeat
 		server:update()
 		process:update()
-	until not server.socket and #server.sockets == 0
+	until not server.socket
 
 	print("Safe shutdown!")
 end
