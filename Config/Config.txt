@@ -4,7 +4,7 @@ name = Default AOS3
 short_name = DA
 
 # Description of the server, which is visible on server list and upon joining.
-description = This is a default AOS3 server.\nSee the repository:\n
+description = This is a default AOS3 server.
 
 # Base folder url for webAO clients.
 assets =
