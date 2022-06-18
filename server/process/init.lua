@@ -40,6 +40,13 @@ end
 function process:get(sock,head,...)
 	if head == "INFO" then protocol:send(sock,"INFO") end
 	if head == "JOIN" then protocol:send(sock,"JOIN") end
+	if head == "PING" then protocol:send(sock,"PONG") end
+	if head == "SIDE" then protocol:send(sock,"SIDE",...) end
+	if head == "CHAR" then protocol:send(sock,"CHAR",...) end
+	if head == "MSG" then protocol:send(sock,"MSG",...) end
+	if head == "SFX" then protocol:send(sock,"SFX",...) end
+	if head == "MUS" then protocol:send(sock,"MUS",...) end
+	if head == "ANIM" then protocol:send(sock,"ANIM",...) end
 end
 
 function process:newClient()
