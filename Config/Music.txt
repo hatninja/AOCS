@@ -1,6 +1,5 @@
 #First item MUST be a category (no file extension) for the area list to work properly.
 ==Music==
-
 Announce The Truth (AA).opus
 Announce The Truth (AJ).opus
 Announce The Truth (JFA).opus
