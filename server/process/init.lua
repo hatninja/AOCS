@@ -24,6 +24,10 @@ function process:resetConfig()
 	config          = data.readConf("./Config/Config.txt")
 	self.characters = data.readList("./Config/Characters.txt")
 	self.music      = data.readList("./Config/Music.txt")
+	self.serverlist = data.readList("./Config/Servers.txt")
+	for i,v in pairs(self.serverlist) do
+		self.serverlist[i] = split(v,"%;")
+	end
 end
 
 function process:update()

@@ -107,12 +107,12 @@ function protocol.unescape(str)
 	:gsub("%<and%>","&")
 end
 
-function protocol.concatAO(t)
+function protocol.concatAO(t,char)
 	local c = {}
 	for i,v in ipairs(t) do
 		c[i] = protocol.escape(tostring(v))
 	end
-	return table.concat(c,"#")
+	return table.concat(c,char or "#")
 end
 
 local input = {}
@@ -152,6 +152,26 @@ input["RD"] = function(self,sock)
 	--self:buffer(sock,"DONE#%")
 	self.storage[sock].done = true
 end
+
+--Masterserver Stuff
+input["VC"] = function(self,sock) --Version Check.
+	self:buffer(sock,"SV#AOCS#%")
+end
+input["ALL"] = function(self,sock) --Get Server-List.
+	local t = {}
+	for i,v in pairs(process.serverlist) do
+		t[i] = self.concatAO(v,"&")
+	end
+	self:buffer(sock,"ALL#"..table.concat(t,"#").."#%")
+end
+input["SCC"] = function(self,sock, port,name,description,software) --Advertise.
+	--Only on success.
+	--self:buffer(sock,"PSDD#0#%")
+end
+input["PING"] = function(self,sock) --Apparently a check?
+	self:buffer(sock,"NOSERV#%")
+end
+
 
 input["CH"] = function(self,sock)
 	process:get(sock,"PING")
