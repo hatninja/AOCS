@@ -1,11 +1,14 @@
 --IPID.
 --Management and storage of IPs under IPIDs. Basically functioning as an IP replacement.
-local IPID = {}
+local IPID = {
+	storage = {},
+	last = 0,
+}
 
 function IPID:load()
 	self.storage = {}
 	self.last = 0
-	
+
 	local list = data:readList("./Data/IPID.txt")
 	for i,line in ipairs(list) do
 		local id,ip = line:match("(%d+) (.*)")
@@ -22,9 +25,6 @@ function IPID:save()
 	data:saveList("./Data/IPID.txt")
 end
 
---TODO: Cleanup over time by counting?
-
---Generate new IPID only when nessecary.
 function IPID:get(ip)
 	local id = storage[ip] or self:new(ip)
 	return id
