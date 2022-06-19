@@ -110,7 +110,11 @@ end
 function protocol.concatAO(t,char)
 	local c = {}
 	for i,v in ipairs(t) do
-		c[i] = protocol.escape(tostring(v))
+		if type(v) == "table" then
+			c[i] = protocol.concatAO(v,"&")
+		else
+			c[i] = protocol.escape(tostring(v))
+		end
 	end
 	return table.concat(c,char or "#")
 end
@@ -153,27 +157,8 @@ input["RD"] = function(self,sock)
 	self.storage[sock].done = true
 end
 
---Masterserver Stuff
-input["VC"] = function(self,sock) --Version Check.
-	self:buffer(sock,"SV#AOCS#%")
-end
-input["ALL"] = function(self,sock) --Get Server-List.
-	local t = {}
-	for i,v in pairs(process.serverlist) do
-		t[i] = self.concatAO(v,"&")
-	end
-	self:buffer(sock,"ALL#"..table.concat(t,"#").."#%")
-end
-input["SCC"] = function(self,sock, port,name,description,software) --Advertise.
-	--Only on success.
-	--self:buffer(sock,"PSDD#0#%")
-end
-input["PING"] = function(self,sock) --Apparently a check?
-	self:buffer(sock,"NOSERV#%")
-end
-
-
 input["CH"] = function(self,sock)
+	self:buffer(sock,"CHECK#%")
 	process:get(sock,"PING")
 end
 input["CC"] = function(self,sock, pid,id) --Choose Character.
@@ -186,15 +171,9 @@ end
 input["ZZ"] = function(self,sock, reason) --Mod Call
 	process:get(sock,"MODPLZ", reason)
 end
-input["DC"] = function(self,sock) --Close Client
-	sock:close()
-end
 input["SP"] = function(self,sock, ...) --Send position
 	process:get(sock,"SIDE",...)
 end
-input["FC"] = function(self,sock) --Free Character.
-	--process:get(sock,"CHAR")
-end; input["PW"] = input["FC"]
 
 input["CT"] = function(self,sock, name,message) --OOC Message
 	process:get(sock,"MSG",{
@@ -223,13 +202,8 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local pair_id      = tointeger(args[17])
 	local offset       = split(args[18],"%&")
 	local nowait       = tointeger(args[19])
-	--local sfx_looping  = tointeger(args[20])
-	--local shake        = tointeger(args[21])
-	--local frames_shake = split(args[22],"%&")
-	--local frames_flash = split(args[23],"%&")
-	--local frames_sfx   = split(args[24],"%&")
-	local append       = tointeger(args[20]) --25
-	local effect       = self.unescape(args[21]) --26
+	local append       = tointeger(args[20])
+	local effect       = self.unescape(args[21])
 
 	if name == "0" then name = nil end
 	if emote == "-" then emote = nil end
@@ -240,7 +214,6 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	if not bool(emote_mod) or pre == "-" then
 		pre = nil
 		sfx_name = nil
-		sfx_delay = nil
 	end
 
 	if sfx_name then
@@ -323,19 +296,9 @@ output["JOIN"] = function(self,sock)
 end
 
 output["CHAR"] = function(self,sock, id_char)
-	local id = 0
-	for i,v in ipairs(process.characters) do
-		if id_char == v then
-			id = i
-			break
-		end
-	end
+	local id = find(process.characters, id_char) or 0
 	self:buffer(sock,"PV#0#CID#"..(id-1).."#%")
 	self.storage[sock].char_id = id-1
-end
-
-output["DONE"] = function(self,sock)
-	--self:buffer(sock,"HP#0#0#%")
 end
 
 output["MSG"] = function(self,sock, msg)
@@ -351,7 +314,7 @@ output["MSG"] = function(self,sock, msg)
 		return
 	end
 
-	--Pull sound effect to play
+	--Sound effect to play
 	local sfx = self.storage[sock].sfx
 
 	--IC Message
@@ -359,26 +322,17 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= msg.pre or "none" --"-" completely disables sound.
 	t[#t+1]= msg.char
 	t[#t+1]= msg.emote
-	local blank = not msg.emote
-
 	t[#t+1]= msg.message or ""
 	t[#t+1]= msg.side
 	t[#t+1]= sfx and sfx.name or 1
-
 	t[#t+1]= 1 --emote_mod
 
 	--If this client is the author, match client's char_id to clear message.
 	if msg.author == sock then
 		t[#t+1]= self.storage[sock].char_id or 0
 	else
-		local id = msg.id_char or 0
-		for i,v in ipairs(process.characters) do
-			if v == msg.id_char then
-				id = (i-1)
-				break
-			end
-		end
-		if id == self.storage[sock].char_id then
+		local id = find(process.characters, msg.id_char) or msg.id_char or 0
+		if self.storage[sock].char_id == id then
 			id = (id+1) % #process.characters
 		end
 		t[#t+1]= id
@@ -386,37 +340,27 @@ output["MSG"] = function(self,sock, msg)
 
 	t[#t+1]= sfx and sfx.delay or 0
 	t[#t+1]= 0 --Shout (Interjection)
-
 	t[#t+1]= 0 --Evidence
 	t[#t+1]= msg.flip and 1 or 0
-
 	t[#t+1]= bool(msg.realize) and 1 or 0
 	t[#t+1]= msg.color or 0
-
 	t[#t+1]= msg.name or ""
 
-	if blank then
-		t[#t+1]= 0
-		t[#t+1]= ""
-		t[#t+1]= "-"
-		t[#t+1]= "100"
-		t[#t+1]= "100"
-		t[#t+1]= 0
-	else
-		t[#t+1]= -1
-		t[#t+1]= ""
-		t[#t+1]= ""
-		t[#t+1]= 0
-		t[#t+1]= 0
-		t[#t+1]= 0
-	end
+	--Pair Section:
+	local blank = not msg.emote
+	t[#t+1]= blank and 0 or -1
+	t[#t+1]= ""
+	t[#t+1]= ""
+	t[#t+1]= blank and "100" or 0
+	t[#t+1]= blank and "100" or 0
+	t[#t+1]= 0
+
 	t[#t+1]= bool(msg.nowait) and 1 or 0
 	t[#t+1]= (sfx and bool(sfx.looping)) and 1 or 0 --looping_sfx
 	t[#t+1]= bool(msg.shake) and 1 or 0 --shake
  	t[#t+1]= "" --Shake
 	t[#t+1]= "" --Flash
 	t[#t+1]= "" --SFX
-
 	t[#t+1]= bool(msg.append) and 1 or 0
 	t[#t+1]= msg.effect or ""
 
@@ -426,12 +370,36 @@ output["MSG"] = function(self,sock, msg)
 	self.storage[sock].sfx = nil
 end
 
+output["SFX"] = function(self,sock, sfx)
+	self.storage[sock].sfx = sfx
+
+	if sfx.wait then return end
+	--SFX only plays on emotes, so send an empty message to play immediately.
+
+	local msg = self.storage[sock].lastmsg or {char = "",name = ""}
+	msg.pre     = nil
+	msg.message = nil
+	msg.append  = true
+
+	output["MSG"](self,sock, msg)
+end
+
 output["MUSIC"] = function(self,sock, track)
 	self:buffer(sock,"MC#"..self.escape(track).."#-1##1#0#2#%")
 end
 
 output["SCENE"] = function(self,sock, scene)
 	self:buffer(sock,"BN#"..self.escape(scene).."#%")
+end
+output["SIDE"] = function(self,sock, side)
+	self:buffer(sock,"SP#"..self.escape(side).."#%")
+end
+
+output["BAN"] = function(self,sock, reason)
+	self:buffer(sock,"KB#"..self.escape(reason).."#%")
+end
+output["NOTICE"] = function(self,sock, note)
+	self:buffer(sock,"BB#"..self.escape(note).."#%")
 end
 
 output["ANI"] = function(self,sock, ani)
@@ -449,20 +417,6 @@ output["ANI"] = function(self,sock, ani)
 	end
 end
 
-output["SFX"] = function(self,sock, sfx)
-	self.storage[sock].sfx = sfx
-
-	if sfx.wait then return end
-	--SFX only plays on emotes, so send an empty message to play immediately.
-
-	local msg = self.storage[sock].lastmsg or {char = "",name = ""}
-	msg.pre     = nil
-	msg.message = nil
-	msg.append  = true
-
-	output["MSG"](self,sock, msg)
-end
-
 --Use ping as a way to update information to clients.
 output["PONG"] = function(self,sock, side)
 	--Server Stats in room count and lock status.
@@ -473,16 +427,6 @@ output["PONG"] = function(self,sock, side)
 	--Get current CM in CM.
 	self:buffer(sock,"ARUP#2#Free#%")
 end
-
-output["SIDE"] = function(self,sock, side)
-	self:buffer(sock,"SP#"..self.escape(side).."#%")
-end
-
-output["BAN"] = function(self,sock, reason)
-	self:buffer(sock,"KB#"..self.escape(reason).."#%")
-end
-output["NOTICE"] = function(self,sock, note)
-	self:buffer(sock,"BB#"..self.escape(note).."#%")
-end
+--TODO: Perhaps a STATUS type message.
 
 return protocol

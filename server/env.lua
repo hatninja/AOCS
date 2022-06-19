@@ -83,6 +83,14 @@ function tointeger(num)
 	end
 end
 
+function find(t,match)
+	for k,value in pairs(t) do
+		if value == match then
+			return k
+		end
+	end
+end
+
 --Evaluate "false" states for other types.
 function bool(v)
 	if (type(v)=="string" or type(v)=="table") and #v == 0 then
