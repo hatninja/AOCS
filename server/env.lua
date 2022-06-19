@@ -1,6 +1,8 @@
 --env.lua
 --Specialized functions for AOS3's enviroment.
 
+--[[Table Handling]]
+
 --Merge two tables together.
 function merge(t, t2)
 	for k,v in pairs(t2) do
@@ -9,7 +11,7 @@ function merge(t, t2)
 end
 
 --Return first empty indice.
-function empty(t)
+function firstempty(t)
 	for i=1,i<#t do
 		if t[i]==nil then
 			return i
@@ -17,11 +19,30 @@ function empty(t)
 	end
 end
 
-function fsend(sock,msg)
-	sock:send(msg,1,#msg)
+--Find match in a table and return its key.
+function find(t,match)
+	for key,value in pairs(t) do
+		if value == match then
+			return key
+		end
+	end
 end
 
-function selectif(i,...)
+--Clone a table's data.
+function clone(t)
+	local new_t = {}
+	for k,v in pairs(t) do
+		if type(v) == "table" then
+			new_t[k] = clone(v)
+		else
+			new_t[k] = v
+		end
+	end
+	return new_t
+end
+
+--[[Control Flow and Error Handling]]
+local function selectif(i,...)
 	if ... and true then
 		return select(i,...)
 	end
@@ -29,7 +50,6 @@ end
 function safe(func,...)
 	return selectif(2,pcall(func,...))
 end
-
 
 function simpletraceback()
 	local tb = debug.traceback()
@@ -42,14 +62,7 @@ function simpletraceback()
 	return tb
 end
 
-function clone(tc)
-	local clone = {}
-	for k,v in pairs(tc) do
-		clone[k] = v
-	end
-	return clone
-end
-
+--[[Value Handling]]
 function split(input,delimit)
 	if not input then return end
 
@@ -76,6 +89,7 @@ function split(input,delimit)
 	return t
 end
 
+--Integer version of tonumber
 function tointeger(num)
 	local num = tonumber(num)
 	if num then
@@ -83,15 +97,7 @@ function tointeger(num)
 	end
 end
 
-function find(t,match)
-	for k,value in pairs(t) do
-		if value == match then
-			return k
-		end
-	end
-end
-
---Evaluate "false" states for other types.
+--Evaluate "false" states of other types. Return value back as a convenience.
 function bool(v)
 	if (type(v)=="string" or type(v)=="table") and #v == 0 then
 		return false
