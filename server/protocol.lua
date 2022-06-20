@@ -158,7 +158,6 @@ input["RD"] = function(self,sock)
 end
 
 input["CH"] = function(self,sock)
-	self:buffer(sock,"CHECK#%")
 	process:get(sock,"PING")
 end
 input["CC"] = function(self,sock, pid,id) --Choose Character.
@@ -227,7 +226,6 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	process:get(sock,"MSG",{
 		name    = name,
 		message = message,
-
 		side    = side,
 		char    = char,
 		emote   = emote,
@@ -419,13 +417,7 @@ end
 
 --Use ping as a way to update information to clients.
 output["PONG"] = function(self,sock, side)
-	--Server Stats in room count and lock status.
-	self:buffer(sock,"ARUP#0#"..(process.count).."#%")
-	self:buffer(sock,"ARUP#3#"..(#process.areas).." areas#%")
-	--Get current session in room status.
-	self:buffer(sock,"ARUP#1#Session [?]#%")
-	--Get current CM in CM.
-	self:buffer(sock,"ARUP#2#Free#%")
+	self:buffer(sock,"CHECK#%")
 end
 
 output["BAR"] = function(self,sock, id,mode,value)
@@ -434,8 +426,11 @@ output["BAR"] = function(self,sock, id,mode,value)
 	if mode == "=" then
 	end
 end
-output["STATUS"] = function(self,sock)
-
+output["STATUS"] = function(self,sock, areas,session,cm)
+	self:buffer(sock,"ARUP#0#"..(process.count).."#%")
+	self:buffer(sock,"ARUP#3#"..(#process.areas).."#%")
+	self:buffer(sock,"ARUP#1#"..(session).."#%")
+	self:buffer(sock,"ARUP#2#"..(cm).."#%")
 end
 
 return protocol
