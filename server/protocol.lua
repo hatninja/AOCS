@@ -56,7 +56,7 @@ function protocol:updateClient(sock)
 			end
 
 			if #server.got[sock]-(packetlength or 0) >= 0 then
-				server.got[sock] = server.got[sock]:sub((packetlength or 0),-1)
+				server.got[sock] = server.got[sock]:sub((packetlength or 0)+1,-1)
 			end
 		until not op
 	end
