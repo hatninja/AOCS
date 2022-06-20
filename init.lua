@@ -34,9 +34,10 @@ local function start()
 end
 
 local function crash(err)
+	server:close()
 	if string.find(err,"interrupted!") then --Interrupt signal, such as via Ctrl+C
 		print("\rReceived signal to close.")
-		server:close() ;start()
+		start()
 		return
 	end
 	print("An error has resulted in a crash!\n"..err.."\n"..simpletraceback())
