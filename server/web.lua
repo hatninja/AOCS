@@ -27,14 +27,11 @@ end
 --print("Expected: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=")
 
 local getBytes = function(str)
-	--[[
 	local t = {}
 	for i=#str,1,-1 do
 		t[i] = string.byte(str:sub(i,i))
 	end
-	return unpack(t)]]
-	local s = string.reverse(str)
-	return string.byte(s,1,#s)
+	return unpack(t)
 end
 
 local bit = bit
@@ -69,9 +66,12 @@ function web.decode(dat)
 		p = p + 4
 	end
 
+	--A mis-match is bad news!
+	if p+LENGTH ~= #dat then return nil end
+
 	local data
 	if LENGTH ~= 0 then
-		local PAYLOAD = dat:sub(p+1,math.min(p+LENGTH,#dat))
+		local PAYLOAD = dat:sub(p+1,p+LENGTH)
 
 		data = ""
 		if MASKED then
