@@ -12,11 +12,11 @@ end
 
 --Return first empty indice.
 function firstempty(t)
-	for i=1,i<#t do
-		if t[i]==nil then
-			return i
-		end
-	end
+	local i=0
+	repeat
+		i=i+1
+	until not t[i]
+	return i
 end
 
 --Find match in a table and return its key.
@@ -41,7 +41,7 @@ function clone(t)
 	return new_t
 end
 
---[[Control Flow and Error Handling]]
+
 local function selectif(i,...)
 	if ... and true then
 		return select(i,...)
@@ -49,17 +49,6 @@ local function selectif(i,...)
 end
 function safe(func,...)
 	return selectif(2,pcall(func,...))
-end
-
-function simpletraceback()
-	local tb = debug.traceback()
-	tb = tb:match("\n.-\n(.+)\n")
-	tb = tb:gsub("\t","")
-	tb = tb:gsub("%[C%]%: in function '(.-)'\n(.-%:%d+%:)","%2 using '%1'")
-	--tb = tb:gsub(".-%:%d+%:(.-)\n.-%"
-	tb = tb:gsub("%[C%]%: .-\n","")
-	tb = tb:gsub("in function '(.-)'","at %1()")
-	return tb
 end
 
 --[[Value Handling]]
