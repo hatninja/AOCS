@@ -7,24 +7,24 @@ end
 
 print "Initializing..."
 
+for i,v in ipairs{
+	"env", "compat",
+	"data","log",
+	"web", "api",
+	"process",
+	"protocol",
+	"server"
+} do
+	_G[v] = require(v)
+end
+
+process:init() --Reads config for us.
+protocol:init()
+
+server:init()
+server:listen(config.ip or "*", tointeger(config.port) or 27016)
+
 local function start()
-	for i,v in ipairs{
-		"env","compat",
-		"data","log",
-		"web",
-		"process",
-		"protocol",
-		"server"
-	} do
-		_G[v] = require(v)
-	end
-
-	process:init() --Reads config for us.
-	protocol:init()
-
-	server:init()
-	server:listen(config.ip or "*", tointeger(config.port) or 27016)
-
 	repeat
 		server:update()
 		process:update()
@@ -40,7 +40,7 @@ local function crash(err)
 		start()
 		return
 	end
-	print("An error has resulted in a crash!\n"..err.."\n"..simpletraceback())
+	print("An error has resulted in a crash!\n"..err.."\n"..debug.traceback())
 end
 
 xpcall(start,crash)
