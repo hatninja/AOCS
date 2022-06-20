@@ -10,7 +10,7 @@ print "Initializing..."
 for i,v in ipairs{
 	"env", "compat",
 	"data","log",
-	"web", "api",
+	"web",
 	"process",
 	"protocol",
 	"server"
