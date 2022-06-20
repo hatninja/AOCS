@@ -5,14 +5,14 @@ function protocol:init()
 end
 
 function protocol:acceptClient(sock)
-	print("New Connection!:",sock)
+	log.monitor(monitor_sock,"New Connection!:",sock)
 	self.storage[sock] = {
 		new=true,
 		web=true,
 	}
 end
 function protocol:closeClient(sock)
-	print("Closed Connection!:",sock)
+	log.monitor(monitor_sock,"Closed Connection!:",sock)
 	self.storage[sock] = nil
 end
 
@@ -23,15 +23,14 @@ function protocol:updateClient(sock)
 	if storage.new and storage.web then
 		local reply, user_agent = web.generateResponse(server.got[sock])
 		if reply then
-			--print("Upgrade Request: [["..server.got[sock].."]]")
+			log.monitor(monitor_web,"Upgrade Request: [[\n"..server.got[sock].."]]")
 			storage.web = ""
 			storage.user_agent = user_agent
 			server.buf[sock] = reply
-			--server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)")
-			server.got[sock] = ""
+			server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)")
+			--server.got[sock] = ""
 		else
 			storage.web = false
-			print("Not Web!")
 		end
 	end
 
@@ -87,7 +86,7 @@ function protocol:buffer(sock, msg)
 	if self.storage[sock].web then
 		data = web.encode(msg,1,false,true)
 	end
-	print("Sent: ",data)
+	log.monitor(monitor_ao,"Sent: ",data)
 	server:send(sock, data)
 end
 
@@ -122,11 +121,11 @@ end
 local input = {}
 function protocol:readAO(sock,head,...)
 	if input[head] then
-		print("Message: \""..head.."\"",...)
+		log.monitor(monitor_ao,"Message: \""..head.."\"",...)
 		input[head](self,sock,...)
 		return
 	end
-	print("Unknown Message: \""..head.."\"",...)
+	log.monitor(monitor_ao,"Unknown Message: \""..head.."\"",...)
 end
 
 input["new"] = function(self,sock)
@@ -163,6 +162,9 @@ end
 input["CC"] = function(self,sock, pid,id) --Choose Character.
 	process:get(sock,"CHAR", process.characters[(tointeger(id) or -1) + 1])
 end
+input["PW"] = function(self,sock, ...) --Send position
+	process:get(sock,"CHAR")
+end input["FC"] = input["PW"]
 input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel) --Play Music
 	if track == "Status" then return end
 	process:get(sock,"MUSIC",self:unescape(track))
@@ -423,6 +425,7 @@ output["PONG"] = function(self,sock, side)
 	self:buffer(sock,"CHECK#%")
 end
 
+--AO Specific.
 output["BAR"] = function(self,sock, id,mode,value)
 	if mode == "+" then
 	end
@@ -435,5 +438,26 @@ output["STATUS"] = function(self,sock, areas,session,cm)
 	self:buffer(sock,"ARUP#1#"..(session).."#%")
 	self:buffer(sock,"ARUP#2#"..(cm).."#%")
 end
-
+output["TAKEN"] = function(self,sock, taken)
+	local t = {}
+	for i,v in ipairs(process.characters) do
+		if not taken then
+			if i % 3 == 0 then
+				t[#t+1] = -1
+			else
+				t[#t+1] = 0
+			end
+		else
+			local take = 0
+			for i2=1,#taken do
+				if taken[i2] == v or taken[i2] == i then
+					take = -1
+					break
+				end
+			end
+			t[#t+1] = take
+		end
+	end
+	self:buffer(sock,"CharsCheck#"..table.concat(t,"#").."#%")
+end
 return protocol
