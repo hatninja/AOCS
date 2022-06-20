@@ -19,20 +19,20 @@ function IPID:load()
 end
 function IPID:save()
 	local list = {}
-	for ip,id in pairs(IPID.storage) do
+	for ip,id in pairs(self.storage) do
 		table.insert(list,id.." "..ip)
 	end
 	data:saveList("./Data/IPID.txt")
 end
 
 function IPID:get(ip)
-	local id = storage[ip] or self:new(ip)
+	local id = self.storage[ip] or self:new(ip)
 	return id
 end
 
 function IPID:new(ip)
 	self.last=self.last+1
-	storage[ip] = self.last
+	self.storage[ip] = self.last
 	return
 end
 
