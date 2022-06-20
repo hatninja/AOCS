@@ -5,8 +5,6 @@ if require("args")(...) then
 	return
 end
 
-print "Initializing..."
-
 for i,v in ipairs{
 	"env", "compat",
 	"data","log",
@@ -17,6 +15,8 @@ for i,v in ipairs{
 } do
 	_G[v] = require(v)
 end
+
+print "Initializing..."
 
 process:init() --Reads config for us.
 protocol:init()
@@ -43,4 +43,5 @@ local function crash(err)
 	print("An error has resulted in a crash!\n"..err.."\n"..debug.traceback())
 end
 
+print("Started!")
 xpcall(start,crash)
