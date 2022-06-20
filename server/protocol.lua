@@ -1,22 +1,22 @@
 local protocol = {}
 
-function protocol.init(self)
+function protocol:init()
 	self.storage = {}
 end
 
-function protocol.acceptClient(self,sock)
+function protocol:acceptClient(sock)
 	print("New Connection!:",sock)
 	self.storage[sock] = {
 		new=true,
 		web=true,
 	}
 end
-function protocol.closeClient(self,sock)
+function protocol:closeClient(sock)
 	print("Closed Connection!:",sock)
 	self.storage[sock] = nil
 end
 
-function protocol.updateClient(self,sock)
+function protocol:updateClient(sock)
 	local storage = self.storage[sock]
 
 	--New connection, check for websocket handshake.
@@ -80,7 +80,7 @@ function protocol.updateClient(self,sock)
 		server.got[sock] = server.got[sock]:sub(p,-1)
 	end
 end
-function protocol.buffer(self,sock, msg)
+function protocol:buffer(sock, msg)
 	if not sock then error("Socket object is invalid!",2) end
 
 	local data = msg
@@ -92,7 +92,7 @@ function protocol.buffer(self,sock, msg)
 end
 
 --Always output a string for safety's sake.
-function protocol.escape(str)
+function protocol:escape(str)
 	return (not str) and "nil" or str:gsub("%#","<num>")
 	:gsub("%$","<dollar>")
 	:gsub("%%","<percent>")
@@ -100,27 +100,27 @@ function protocol.escape(str)
 	:gsub("\\n","\n") --For funsies!
 end
 --Double as validation for empty values.
-function protocol.unescape(str)
+function protocol:unescape(str)
 	return str and str ~= "" and str:gsub("%<num%>","#")
 	:gsub("%<dollar%>","$")
 	:gsub("%<percent%>","%%")
 	:gsub("%<and%>","&")
 end
 
-function protocol.concatAO(t,char)
+function protocol:concatAO(t,char)
 	local c = {}
 	for i,v in ipairs(t) do
 		if type(v) == "table" then
-			c[i] = protocol.concatAO(v,"&")
+			c[i] = self:concatAO(v,"&")
 		else
-			c[i] = protocol.escape(tostring(v))
+			c[i] = self:escape(tostring(v))
 		end
 	end
 	return table.concat(c,char or "#")
 end
 
 local input = {}
-function protocol.readAO(self,sock,head,...)
+function protocol:readAO(sock,head,...)
 	if input[head] then
 		print("Message: \""..head.."\"",...)
 		input[head](self,sock,...)
@@ -166,7 +166,7 @@ input["CC"] = function(self,sock, pid,id) --Choose Character.
 end
 input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel) --Play Music
 	if track == "Status" then return end
-	process:get(sock,"MUSIC",self.unescape(track))
+	process:get(sock,"MUSIC",self:unescape(track))
 end
 input["ZZ"] = function(self,sock, reason) --Mod Call
 	process:get(sock,"MODPLZ", reason)
@@ -177,19 +177,19 @@ end
 
 input["CT"] = function(self,sock, name,message) --OOC Message
 	process:get(sock,"MSG",{
-		name = self.unescape(name),
-		message = self.unescape(message)
+		name = self:unescape(name),
+		message = self:unescape(message)
 	})
 end
 input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local args = {...}
 	local desk         = tointeger(args[1]) --"chat" will show as nil.
-	local pre          = self.unescape(args[2])
-	local char         = self.unescape(args[3])
-	local emote        = self.unescape(args[4])
-	local message      = self.unescape(args[5])
-	local side         = self.unescape(args[6])
-	local sfx_name     = self.unescape(args[7])
+	local pre          = self:unescape(args[2])
+	local char         = self:unescape(args[3])
+	local emote        = self:unescape(args[4])
+	local message      = self:unescape(args[5])
+	local side         = self:unescape(args[6])
+	local sfx_name     = self:unescape(args[7])
 	local emote_mod    = tointeger(args[8])
 	local char_id      = tointeger(args[9])
 	local sfx_delay    = tonumber(args[10])
@@ -198,12 +198,12 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local flip         = tointeger(args[13])
 	local realize      = tointeger(args[14])
 	local color        = tointeger(args[15])
-	local name         = self.unescape(args[16])
+	local name         = self:unescape(args[16])
 	local pair_id      = tointeger(args[17])
 	local offset       = split(args[18],"%&")
 	local nowait       = tointeger(args[19])
 	local append       = tointeger(args[20])
-	local effect       = self.unescape(args[21])
+	local effect       = self:unescape(args[21])
 
 	if name == "0" then name = nil end
 	if emote == "-" then emote = nil end
@@ -261,7 +261,7 @@ input["4422"] = input["DC"]
 
 
 local output = {}
-function protocol.send(self,sock,head,...)
+function protocol:send(sock,head,...)
 	if output[head] then
 		output[head](self,sock,...)
 	else
@@ -272,11 +272,11 @@ end
 output["INFO"] = function(self,sock)
 	self:buffer(sock,"decryptor#34#%")
 	self:buffer(sock,"ID#0#AOS3#git#%")
-	self:buffer(sock,"PN#"..(process.count).."#0#"..self.escape(config.description).."%")
+	self:buffer(sock,"PN#"..(process.count).."#0#"..self:escape(config.description).."%")
 	self:buffer(sock,"FL#fastloading#noencryption#yellowtext#flipping#deskmod#customobjections#modcall_reason#cccc_ic_support#arup#additive#effects#%")
 
 	if bool(config.assets) then
-		self:buffer(sock,"ASS#"..self.escape(config.assets).."#%")
+		self:buffer(sock,"ASS#"..self:escape(config.assets).."#%")
 	end
 end
 
@@ -385,35 +385,35 @@ output["SFX"] = function(self,sock, sfx)
 end
 
 output["MUSIC"] = function(self,sock, track)
-	self:buffer(sock,"MC#"..self.escape(track).."#-1##1#0#2#%")
+	self:buffer(sock,"MC#"..self:escape(track).."#-1##1#0#2#%")
 end
 
 output["SCENE"] = function(self,sock, scene)
-	self:buffer(sock,"BN#"..self.escape(scene).."#%")
+	self:buffer(sock,"BN#"..self:escape(scene).."#%")
 end
 output["SIDE"] = function(self,sock, side)
-	self:buffer(sock,"SP#"..self.escape(side).."#%")
+	self:buffer(sock,"SP#"..self:escape(side).."#%")
 end
 
 output["BAN"] = function(self,sock, reason)
-	self:buffer(sock,"KB#"..self.escape(reason).."#%")
+	self:buffer(sock,"KB#"..self:escape(reason).."#%")
 end
 output["NOTICE"] = function(self,sock, note)
-	self:buffer(sock,"BB#"..self.escape(note).."#%")
+	self:buffer(sock,"BB#"..self:escape(note).."#%")
 end
 
 output["ANI"] = function(self,sock, ani)
 	if ani.name == "witnesstestimony" then
-		server.send(sock,"RT#testimony1#%")
+		self:buffer(sock,"RT#testimony1#%")
 	elseif ani.name == "crossexamination" then
-		server.send(sock,"RT#testimony2#%")
+		self:buffer(sock,"RT#testimony2#%")
 	elseif ani.name == "clear_testimony" then
-		server.send(sock,"RT#testimony1#1#%")
+		self:buffer(sock,"RT#testimony1#1#%")
 	elseif ani.name == "add_testimony" then
-		server.send(sock,"RT#testimony1#0#%")
-		server.send(sock,"RT#-#%")
+		self:buffer(sock,"RT#testimony1#0#%")
+		self:buffer(sock,"RT#-#%")
 	else
-		server.send(sock,"RT#"..self.escape(ani.name).."#%")
+		self:buffer(sock,"RT#"..self:escape(ani.name).."#%")
 	end
 end
 
@@ -427,6 +427,15 @@ output["PONG"] = function(self,sock, side)
 	--Get current CM in CM.
 	self:buffer(sock,"ARUP#2#Free#%")
 end
---TODO: Perhaps a STATUS type message.
+
+output["BAR"] = function(self,sock, id,mode,value)
+	if mode == "+" then
+	end
+	if mode == "=" then
+	end
+end
+output["STATUS"] = function(self,sock)
+
+end
 
 return protocol
