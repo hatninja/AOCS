@@ -146,10 +146,10 @@ input["askchaa"] = function(self,sock)
 	process:get(sock,"JOIN")
 end
 input["RC"] = function(self,sock)
---	self:buffer(sock,"SC#"..self.concatAO(process.characters).."#%")
+--	self:buffer(sock,"SC#"..self:concatAO(process.characters).."#%")
 end
 input["RM"] = function(self,sock)
---	self:buffer(sock,"SM#Status#"..self.concatAO(process.music).."#%")
+--	self:buffer(sock,"SM#Status#"..self:concatAO(process.music).."#%")
 end
 input["RD"] = function(self,sock)
 	--self:buffer(sock,"CharsCheck#0#%")
@@ -260,6 +260,9 @@ input["4422"] = input["DC"]
 
 local output = {}
 function protocol:send(sock,head,...)
+	if type(sock) ~= "userdata" then error("Expected client socket at arg #1!",2) end
+	if type(head) ~= "string" then error("Expected string (packet header) at arg #2!",2) end
+
 	if output[head] then
 		output[head](self,sock,...)
 	else
@@ -283,8 +286,8 @@ output["JOIN"] = function(self,sock)
 	local musics = #process.music+1 --"Status"
 	self:buffer(sock,"SI#"..chars.."#1#"..musics.."#%")
 
-	self:buffer(sock,"SC#"..self.concatAO(process.characters).."#%")
-	self:buffer(sock,"SM#Status#"..self.concatAO(process.music).."#%")
+	self:buffer(sock,"SC#"..self:concatAO(process.characters).."#%")
+	self:buffer(sock,"SM#Status#"..self:concatAO(process.music).."#%")
 
 	self:buffer(sock,"DONE#%")
 
@@ -308,7 +311,7 @@ output["MSG"] = function(self,sock, msg)
 		t[3]= msg.message
 		t[4]= msg.server and 1 or nil
 
-		self:buffer(sock,self.concatAO(t).."#%")
+		self:buffer(sock,self:concatAO(t).."#%")
 		return
 	end
 
@@ -362,7 +365,7 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= bool(msg.append) and 1 or 0
 	t[#t+1]= msg.effect or ""
 
-	self:buffer(sock,self.concatAO(t).."#%")
+	self:buffer(sock,self:concatAO(t).."#%")
 
 	self.storage[sock].lastmsg = msg
 	self.storage[sock].sfx = nil
