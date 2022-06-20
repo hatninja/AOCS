@@ -38,12 +38,15 @@ function server:update()
 
 	--Read received client data.
 	for i,sock in ipairs(recv_t) do
-		local dat,err,part = sock:receive(MAXREAD)
-		self.got[sock]     = self.got[sock] .. (dat or part)
-		self.closed[sock]  = (err == "closed")
+		local data,err,part = sock:receive(MAXREAD)
+		self.got[sock]      = self.got[sock] .. (data or part)
+		self.closed[sock]   = (err=="closed") or nil
 	end
 
 	--Update clients.
+	for i,sock in ipairs(self.sockets) do
+		protocol:updateClient(sock)
+	end
 	for i,sock in ipairs(self.sockets) do
 		process:updateClient(sock)
 	end
@@ -52,9 +55,9 @@ function server:update()
 	for i,sock in ipairs(send_t) do
 		local dat = self.buf[sock]
 		if #dat > 0 then
-			local bytes,err   = sock:send(dat,1,MAXSEND)
-			self.buf[sock]    = string.sub(dat,bytes+1,-1)
-			self.closed[sock] = (err == "closed")
+			local sent_bytes,err = sock:send(dat,1,MAXSEND)
+			self.buf[sock]       = string.sub(dat,sent_bytes+1,-1)
+			self.closed[sock]    = (err=="closed") or nil
 		end
 	end
 
