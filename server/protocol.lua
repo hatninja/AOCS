@@ -38,19 +38,25 @@ function protocol:updateClient(sock)
 	if storage.web then
 		repeat
 			local data, op, masked, fin, packetlength = web.decode(server.got[sock])
+			log.monitor(op and monitor_web,"OP("..tostring(op)..")FIN("..(fin and 1 or 0)..")Data[["..tostring(data).."]]")
+
 			if op == 0 or op == 1 or op == 2 then
 				storage.web = storage.web .. data
-
 			elseif op == 9 then --PING
 				local pong = web.encode(data,10,false,true)
 				sock:send(pong,1,#pong)
-
 			elseif op == 8 then --Client wants to close
 				sock:close()
 				break
 			end
+
+			--If a packet cant be read in the data, something has gone terribly wrong.,
+			if not op and #server.got[sock] ~= "" then
+				server.got[sock] = "" --Reset the buffer entirely.
+			end
+
 			if #server.got[sock]-(packetlength or 0) >= 0 then
-				server.got[sock] = server.got[sock]:sub((packetlength or 0)+1,-1)
+				server.got[sock] = server.got[sock]:sub((packetlength or 0),-1)
 			end
 		until not op
 	end
@@ -121,11 +127,11 @@ end
 local input = {}
 function protocol:readAO(sock,head,...)
 	if input[head] then
-		log.monitor(monitor_ao,"Message: \""..head.."\"",...)
+		log.monitor(monitor_ao,"Message: \""..head.."\"",self:concatAO{...})
 		input[head](self,sock,...)
 		return
 	end
-	log.monitor(monitor_ao,"Unknown Message: \""..head.."\"",...)
+	log.monitor(monitor_ao,"Unknown Message: \""..head.."\"",self:concatAO{...})
 end
 
 input["new"] = function(self,sock)
