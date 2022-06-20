@@ -23,7 +23,9 @@ function server:listen(ip, port)
 	self.socket = sock
 end
 function server:close()
-	if not self.socket then return end
+	for i,sock in ipairs(self.sockets) do
+		sock:close()
+	end
 	self.socket:close()
 	self.socket=nil
 end
