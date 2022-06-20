@@ -65,6 +65,22 @@ function process:update()
 			self:removeClient(v)
 		end
 	end
+
+	--Find Orphaned clients and remove them for now.
+	for id,client in pairs(self.clients) do
+		local session = self:getSession(client)
+		if not session then
+			log.monitor(monitor_proc,"Orphaned Client["..id.."]")
+			self:removeClient(v)
+		end
+	end
+
+	--Remove closed clients.
+	for id,client in pairs(self.clients) do
+		if server.closed[client.sock] then
+			self:removeClient(v)
+		end
+	end
 end
 
 function process:updateClient(sock)
@@ -86,18 +102,18 @@ function process:updateClient(sock)
 end
 
 function process:get(sock,head,...)
-	if head == "INFO" then protocol:send(sock,"INFO") end
-	if head == "PING" then protocol:send(sock,"PONG") end
+	if head == "INFO" then protocol:send(sock,"INFO");return end
+	if head == "PING" then protocol:send(sock,"PONG");return end
 
-	if head == "JOIN" then
+	local client = self:getClient(sock)
+	local session,index = self:getSession(client)
+
+	if head == "JOIN" and not client then
 		protocol:send(sock,"JOIN")
 		self:newClient(sock)
 		self:updateClient(sock)
 		protocol:send(sock,"CHAR")
 	end
-
-	local client = self:getClient(sock)
-	local session,index = self:getSession(client)
 
 	if not client or not session then return end
 
