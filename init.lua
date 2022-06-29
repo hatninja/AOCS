@@ -5,14 +5,15 @@ if require("args")(...) then
 	return
 end
 
-for i,v in ipairs{
+local toload = {
 	"env", "compat",
 	"data","log",
-	"web","protocol",
+	"web", "protocol",
 	"process",
 	"server"
-} do
-	_G[v] = require(v)
+}
+for i,name in ipairs(toload) do
+	_G[name] = require(name)
 end
 
 print "Initializing..."
