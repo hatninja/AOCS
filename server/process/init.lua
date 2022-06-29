@@ -17,9 +17,9 @@ function process:init()
 
 	self.modules = {}
 	for i,dir in ipairs(data.getDir("./server/modules/")) do
-		local name = dir:match("^(.-)%.")
-		local chunk = safe(loadfile,"./server/modules/"..name..".lua") or safe(loadfile,"./server/modules/"..name.."/init.lua")
-		local module, err = safe(chunk)
+		local name         = dir:match("^(.-)%.")
+		local chunk        = safe(loadfile,"./server/modules/"..name..".lua") or safe(loadfile,"./server/modules/"..name.."/init.lua")
+		local module, err  = safe(chunk)
 		self.modules[name] = module
 		if not module then
 			print("Error with "..name..": "..err)
@@ -27,6 +27,8 @@ function process:init()
 	end
 
 	self.areas = {}
+	self:newArea("Lobby","lobby")
+
 	self.replay = {}
 
 	self:resetConfig()
@@ -71,6 +73,7 @@ function process:updateSock(sock)
 	if not session then
 		session = self:findMirror(client) or self:newSession()
 		self:attachClient(session,client)
+		self:moveto(session,self:getArea(1))
 
 		self:refresh(client)
 		self:catchup(client)
@@ -128,11 +131,21 @@ function process:get(sock,head,...)
 
 	if head == "CHAR" then
 		self:send(sock,"CHAR",...)
-		self:send(sock,"TAKEN")
+		session.char = ...
+
+		local taken = {}
+		for i,ses in pairs(self:getSessions(self:getArea(1))) do
+			taken[#taken+1] = ses.char
+		end
+		self:send(sock,"TAKEN",taken)
 	end
-	if head == "MSG" then
-		local msg = ...
-		self:send(self,"MSG",msg)
+	if head == "MSG" and self:event("message",session,...) then
+		for i,ses in pairs(self:getSessions(self:getArea(1))) do
+			local msg = clone(...)
+			if self:event("messageto",session,ses,msg) then
+				self:send(ses,"MSG",msg)
+			end
+		end
 	end
 	if head == "SFX"  then self:send(self,"SFX",...) end
 	if head == "MUSIC"then self:send(self,"MUSIC",...) end
@@ -147,10 +160,11 @@ function process:get(sock,head,...)
 end
 
 --[[Session Handling]]
-function process:newSession()
+function process:newSession(area)
 	local session = {
 		clients  = {},
-		area     = 0,
+		replay   = {},
+		area     = area,
 		created  = self.uptime,
 		_session = true,
 	}
@@ -265,6 +279,84 @@ function process:detachClient(ses,cli)
 	log.monitor(monitor_proc,"Detached Client["..cli.id.."] from Session["..ses.id.."]")
 end
 
+--[[Area Management]]
+function process:newArea(name,type)
+	local area = {
+		sessions = {},
+		replay   = {},
+		name     = name or self:genAreaName("New Room"),
+		type     = type,
+		created  = self.uptime,
+		_area    = true,
+	}
+	area.id = firstempty(self.areas)
+	self.areas[area.id] = area
+
+	log.monitor(monitor_proc,"New Area '"..area.name.."' with ID: "..area.id)
+	return client
+end
+function process:removeArea(area)
+	if not area._area then error("Area object required!", 2) end
+	for i,session in pairs(area.sessions) do
+		self:moveto(session,self:getArea(1), true)
+	end
+	self.areas[area.id] = nil
+end
+function process:getArea(id)
+	return self.areas[tonumber(id) or 0]
+end
+function process:genAreaName(name,area)
+	name=name:match("^%s*(.-)%s*$")
+
+	local tick = 1
+	repeat
+		local match = false
+		for k,v in pairs(self.areas) do
+			if (name == v.name or string.format("%s <%d>",name,tick) == v.name)
+			and v ~= area then
+				tick  = tick+1
+				match = true
+				break
+			end
+		end
+	until not match
+	if tick > 1 then
+		return string.format("%s <%d>",name,tick)
+	end
+	return name
+end
+function process:searchArea(name)
+	for k,area in pairs(self.areas) do
+		if name == area.name then
+			return area
+		end
+	end
+
+	local searchstr = name:match("^%s*(.-)%s*$"):lower():gsub("%W","")
+	for k,area in pairs(self.areas) do
+		if searchstr == area.name:sub(1,#searchstr):lower():gsub("%W","") then
+			return area
+		end
+	end
+end
+function process:moveto(session,area,override)
+	if not session._session then error("Requiring a session to move!", 2) end
+	if not area._area then error("Area object required!", 2) end
+
+	local good, value = self:event("areamove",session,area)
+	if override or good then
+		local new_area = value or area
+		local old_area = session.area
+		if old_area then
+			table.remove(area.sessions,findindex(area,session))
+		end
+		session.area = area
+		table.insert(area.sessions,1,session)
+
+		log.monitor(monitor_proc,"Session["..session.id.."] moved to Area["..area.id.."]")
+	end
+end
+
 --Search for a session that's eligible for mirroring. Ignore dual clients.
 --TODO: Check for client association to avoid mirroring two users.
 --TODO: Also check if the session is ghosted.
@@ -285,6 +377,43 @@ end
 function process:catchup(user) --Send history
 end
 
+--[[Module Helpers]]
+local createCallbackHandler = function()
+	return {
+		cancel = function(self)
+			self.cancelled = true
+		end,
+		setValue = function(self,value)
+			self.value = value
+		end,
+		getValue = function(self)
+			return self.value
+		end
+	}
+end
+function process:event(name,...)
+	local callbacks = {}
+	for key,module in pairs(self.modules) do
+		if module.callbacks and module.callbacks[name] then
+			callbacks[#callbacks+1] = {key, module.priority and module.priority[name] or 3}
+		end
+	end
+
+	table.sort(callbacks,function(a,b) return a[2] < b[2] end)
+
+	local cb = createCallbackHandler()
+	for i,t in ipairs(callbacks) do
+		local module = self.modules[t[1]]
+		local value, err = safe(module.callbacks[name],module,cb,...)
+		if not value and err then
+			print("Event '"..name.."' callback error "..t[1]..": "..err)
+		end
+		if cb.cancelled then
+			break
+		end
+	end
+	return not cb.cancelled, cb:getValue()
+end
 
 
 return process
