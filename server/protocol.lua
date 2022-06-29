@@ -1,22 +1,20 @@
-local protocol = {}
+local protocol = {
+	storage = {},
+}
 
-function protocol:init()
-	self.storage = {}
-end
-
-function protocol:acceptClient(sock)
+function protocol:acceptSock(sock)
 	log.monitor(monitor_sock,"New Connection!:",sock)
 	self.storage[sock] = {
 		new=true,
 		web=true,
 	}
 end
-function protocol:closeClient(sock)
+function protocol:removeSock(sock)
 	log.monitor(monitor_sock,"Closed Connection!:",sock)
 	self.storage[sock] = nil
 end
 
-function protocol:updateClient(sock)
+function protocol:updateSock(sock)
 	local storage = self.storage[sock]
 
 	--New connection, check for websocket handshake.
@@ -28,7 +26,6 @@ function protocol:updateClient(sock)
 			storage.user_agent = user_agent
 			server.buf[sock] = reply
 			server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)")
-			--server.got[sock] = ""
 		else
 			storage.web = false
 		end
@@ -210,7 +207,7 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local offset       = split(args[18],"%&")
 	local nowait       = tointeger(args[19])
 	local append       = tointeger(args[20])
-	local effect       = self:unescape(args[21])
+	local effect       = split(self:unescape(args[21]),"||")
 
 	if name == "0" then name = nil end
 	if emote == "-" then emote = nil end
@@ -231,6 +228,16 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 			wait   = true,
 		})
 	end
+	if effect[2] then
+		process:get(sock,"SFX",{name=effect[2],wait=true})
+	end
+	if shout[1] then
+		process:get(sock,"ANI",{
+			name  = "interject",
+			shout = shout[2] or tonumber(shout[1]),
+			wait  = true,
+		})
+	end
 	process:get(sock,"MSG",{
 		name    = name,
 		message = message,
@@ -238,12 +245,15 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 		char    = char,
 		emote   = emote,
 		pre     = pre,
+		color   = color,
 
 		--Miscellaneous toggles.
 		append  = append,
 		nowait  = nowait,
 		realize = realize,
 		shake   = shake,
+
+		effect  = effect[1],
 
 		id_char = id_char,
 		author  = sock,
@@ -305,7 +315,7 @@ output["JOIN"] = function(self,sock)
 end
 
 output["CHAR"] = function(self,sock, id_char)
-	local id = find(process.characters, id_char) or 0
+	local id = findindex(process.characters, id_char) or 0
 	self:buffer(sock,"PV#0#CID#"..(id-1).."#%")
 	self.storage[sock].char_id = id-1
 end
@@ -325,6 +335,8 @@ output["MSG"] = function(self,sock, msg)
 
 	--Sound effect to play
 	local sfx = self.storage[sock].sfx
+	--Read any screen animations to play, such as an interjection.
+	local ani = self.storage[sock].ani
 
 	--IC Message
 	t[#t+1]= "chat"
@@ -340,7 +352,7 @@ output["MSG"] = function(self,sock, msg)
 	if msg.author == sock then
 		t[#t+1]= self.storage[sock].char_id or 0
 	else
-		local id = find(process.characters, msg.id_char) or msg.id_char or 0
+		local id = findindex(process.characters, msg.id_char) or msg.id_char or 0
 		if self.storage[sock].char_id == id then
 			id = (id+1) % #process.characters
 		end
@@ -348,7 +360,12 @@ output["MSG"] = function(self,sock, msg)
 	end
 
 	t[#t+1]= sfx and sfx.delay or 0
-	t[#t+1]= 0 --Shout (Interjection)
+
+	if ani and ani.name == "interject" then
+		t[#t+1]= tonumber(ani.shout) or "4&"..tostring(ani.shout)
+	else
+		t[#t+1]= 0
+	end
 	t[#t+1]= 0 --Evidence
 	t[#t+1]= msg.flip and 1 or 0
 	t[#t+1]= bool(msg.realize) and 1 or 0
@@ -357,32 +374,46 @@ output["MSG"] = function(self,sock, msg)
 
 	--Pair Section:
 	local blank = not msg.emote
-	t[#t+1]= blank and 0 or -1
-	t[#t+1]= ""
-	t[#t+1]= ""
-	t[#t+1]= blank and "100" or 0
-	t[#t+1]= blank and "100" or 0
-	t[#t+1]= 0
+	if bool(msg.preserve) then
+		local lastmsg = self.storage[sock].lastmsg
+		t[#t+1]= 0
+		t[#t+1]= lastmsg.char or ""
+		t[#t+1]= lastmsg.emote or ""
+		t[#t+1]= blank and "100" or 0
+		t[#t+1]= 0
+		t[#t+1]= lastmsg.flip and 1 or 0
+	else
+		t[#t+1]= blank and 0 or -1
+		t[#t+1]= ""
+		t[#t+1]= ""
+		t[#t+1]= blank and "100" or 0
+		t[#t+1]= blank and "100" or 0
+		t[#t+1]= 0
+	end
 
 	t[#t+1]= bool(msg.nowait) and 1 or 0
-	t[#t+1]= (sfx and bool(sfx.looping)) and 1 or 0 --looping_sfx
+	t[#t+1]= bool(sfx and sfx.looping) and 1 or 0 --looping_sfx
 	t[#t+1]= bool(msg.shake) and 1 or 0 --shake
  	t[#t+1]= "" --Shake
-	t[#t+1]= "" --Flash
+	t[#t+1]= bool(msg.realize) and "1" or "" --Flash
 	t[#t+1]= "" --SFX
 	t[#t+1]= bool(msg.append) and 1 or 0
 	t[#t+1]= msg.effect or ""
 
 	self:buffer(sock,self:concatAO(t).."#%")
 
-	self.storage[sock].lastmsg = msg
+	if not bool(msg.preserve) then
+		self.storage[sock].lastmsg = msg
+	end
 	self.storage[sock].sfx = nil
+	self.storage[sock].ani = nil
 end
 
 output["SFX"] = function(self,sock, sfx)
-	self.storage[sock].sfx = sfx
-
-	if sfx.wait then return end
+	if not sfx or sfx.wait then
+		self.storage[sock].sfx = sfx
+		return
+	end
 	--SFX only plays on emotes, so send an empty message to play immediately.
 
 	local msg = self.storage[sock].lastmsg or {char = "",name = ""}
@@ -412,6 +443,9 @@ output["NOTICE"] = function(self,sock, note)
 end
 
 output["ANI"] = function(self,sock, ani)
+	if not ani or ani.wait then
+		self.storage[sock].ani = ani
+	end
 	if ani.name == "witnesstestimony" then
 		self:buffer(sock,"RT#testimony1#%")
 	elseif ani.name == "crossexamination" then
@@ -421,6 +455,10 @@ output["ANI"] = function(self,sock, ani)
 	elseif ani.name == "add_testimony" then
 		self:buffer(sock,"RT#testimony1#0#%")
 		self:buffer(sock,"RT#-#%")
+	elseif ani.name == "notguilty" then
+		self:buffer(sock,"RT#judgeruling#0#%")
+	elseif ani.name == "guilty" then
+		self:buffer(sock,"RT#judgeruling#1#%")
 	else
 		self:buffer(sock,"RT#"..self:escape(ani.name).."#%")
 	end
@@ -433,14 +471,22 @@ end
 
 --AO Specific.
 output["BAR"] = function(self,sock, id,mode,value)
+	local bars = self.storage[sock].bars
+	if not bars then
+		bars = {}
+		self.storage[sock].bars = bars
+	end
 	if mode == "+" then
+		bars[id] = (bars[id] or 0) + value
 	end
 	if mode == "=" then
+		bars[id] = value
 	end
+	self:buffer(sock,"HP#"..id.."#"..bars[id].."#%")
 end
-output["STATUS"] = function(self,sock, areas,session,cm)
-	self:buffer(sock,"ARUP#0#"..(process.count).."#%")
-	self:buffer(sock,"ARUP#3#"..(#process.areas).."#%")
+output["STATUS"] = function(self,sock, user_count,areas,session,cm)
+	self:buffer(sock,"ARUP#0#"..(user_count).."#%")
+	self:buffer(sock,"ARUP#3#"..(areas).."#%")
 	self:buffer(sock,"ARUP#1#"..(session).."#%")
 	self:buffer(sock,"ARUP#2#"..(cm).."#%")
 end

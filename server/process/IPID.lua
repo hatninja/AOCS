@@ -9,7 +9,7 @@ function IPID:load()
 	self.storage = {}
 	self.last = 0
 
-	local list = data:readList("./Data/IPID.txt")
+	local list = data.readList("./data/IPID.txt")
 	for i,line in ipairs(list) do
 		local id,ip = line:match("(%d+) (.*)")
 		id=tonumber(id)
@@ -22,7 +22,7 @@ function IPID:save()
 	for ip,id in pairs(self.storage) do
 		table.insert(list,id.." "..ip)
 	end
-	data:saveList("./Data/IPID.txt")
+	data.saveList("./data/IPID.txt")
 end
 
 function IPID:get(ip)

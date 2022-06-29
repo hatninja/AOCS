@@ -13,7 +13,6 @@ end
 data.read = function(dir)
 	local f = io.open(dir,"r")
 	if not f then return "" end
-	
 	local dat = f:read("*a");f:close()
 	return dat
 end
@@ -21,7 +20,6 @@ end
 data.save = function(dir,dat)
 	local f = io.open(dir,"w")
 	if not f then return end
-	
 	f:write(dat);f:close()
 end
 
@@ -53,6 +51,15 @@ data.readConf = function(dir)
 end
 
 data.saveConf = function(dir,conf)
+end
+
+data.getDir = function(dir)
+	local items = {}
+	local file = io.popen("ls "..dir)
+	for line in file:lines() do
+		items[#items+1] = line
+	end
+	return items
 end
 
 return data

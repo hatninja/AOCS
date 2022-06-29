@@ -8,9 +8,8 @@ end
 for i,v in ipairs{
 	"env", "compat",
 	"data","log",
-	"web",
+	"web","protocol",
 	"process",
-	"protocol",
 	"server"
 } do
 	_G[v] = require(v)
@@ -19,7 +18,6 @@ end
 print "Initializing..."
 
 process:init() --Reads config for us.
-protocol:init()
 
 server:init()
 server:listen(config.ip or "*", tointeger(config.port) or 27016)

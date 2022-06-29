@@ -1,6 +1,6 @@
 --compat.lua
 --Ensures the program has everything it needs to run properly.
---This includes required libraries and enviroment compatibility between lua versions.
+--This includes required libraries and environment compatibility between lua versions.
 
 print ("("..(jit and jit.version or _VERSION)..")")
 
@@ -23,5 +23,3 @@ end
 
 math.randomseed(os.time())
 math.random();math.random()
-
-

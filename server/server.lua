@@ -23,9 +23,6 @@ function server:listen(ip, port)
 	self.socket = sock
 end
 function server:close()
-	for i,sock in ipairs(self.sockets) do
-		sock:close()
-	end
 	self.socket:close()
 	self.socket=nil
 end
@@ -47,10 +44,10 @@ function server:update()
 
 	--Update clients.
 	for i,sock in ipairs(self.sockets) do
-		protocol:updateClient(sock)
+		protocol:updateSock(sock)
 	end
 	for i,sock in ipairs(self.sockets) do
-		process:updateClient(sock)
+		process:updateSock(sock)
 	end
 
 	--Send buffered data to clients.
@@ -65,14 +62,15 @@ function server:update()
 
 	--Remove closed clients.
 	for sock in pairs(self.closed) do
-		table.remove(self.sockets, find(self.sockets,sock) )
+		table.remove(self.sockets, findindex(self.sockets,sock) )
 
 		self.closed[sock]  = nil
 		self.sockets[sock] = nil
 		self.buf[sock]     = nil
 		self.got[sock]     = nil
 
-		protocol:closeClient(sock)
+		protocol:removeSock(sock)
+		process:removeClient(sock)
 	end
 
 	--Accept new connections.
@@ -87,9 +85,9 @@ function server:update()
 				self.buf[sock]     = ""
 				self.got[sock]     = ""
 
-				protocol:acceptClient(sock)
+				protocol:acceptSock(sock)
 			end
-		until not connection
+		until not sock
 	end
 end
 
