@@ -1,6 +1,8 @@
-local protocol = {
-	storage = {},
-}
+local protocol = {}
+
+function protocol:init()
+	self.storage = {}
+end
 
 function protocol:acceptSock(sock)
 	log.monitor(monitor_sock,"New Connection!:",sock)

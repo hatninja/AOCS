@@ -18,6 +18,7 @@ end
 print "Initializing..."
 
 process:init() --Reads config for us.
+protocol:init()
 
 server:init()
 server:listen(config.ip or "*", tointeger(config.port) or 27016)
