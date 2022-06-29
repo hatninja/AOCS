@@ -147,8 +147,14 @@ function process:get(sock,head,...)
 			end
 		end
 	end
-	if head == "SFX"  then self:send(self,"SFX",...) end
-	if head == "MUSIC"then self:send(self,"MUSIC",...) end
+	if head == "SFX" then
+		self:send(self,"SFX",...)
+	end
+	if head == "MUSIC" then
+		self:sendOOC(self,"Playing '"..tostring(...).."'")
+		self:send(self,"MUSIC",...)
+	end
+
 
 	if head == "SIDE" then self:get(sock,"MSG",{message="/pos "..tostring(...)}) end
 	if head == "PING" then
@@ -375,6 +381,10 @@ end
 function process:refresh(user) --Set the current scene
 end
 function process:catchup(user) --Send history
+end
+
+function process:sendOOC(cli,msg,name)
+	self:send(cli,"MSG",{message=msg,name=name or config.short_name,server=true})
 end
 
 --[[Module Helpers]]
