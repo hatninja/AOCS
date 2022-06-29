@@ -20,9 +20,24 @@ function firstempty(t)
 end
 
 --Find match in a table and return its key.
-function find(t,match)
+function findindex(t,match)
+	for index=1,#t do
+		if t[index] == match then
+			return index
+		end
+	end
+end
+function findkey(t,match)
 	for key,value in pairs(t) do
 		if value == match then
+			return key
+		end
+	end
+end
+function findamong(t,match,key)
+	for key,value in pairs(t) do
+		if type(value) == "table"
+		and value[name] == match then
 			return key
 		end
 	end
@@ -43,11 +58,13 @@ end
 
 
 local function selectif(i,...)
-	if ... and true then
+	if ... then
 		return select(i,...)
 	end
+	return ...
 end
 function safe(func,...)
+	if type(func) ~= "function" then return end
 	return selectif(2,pcall(func,...))
 end
 
@@ -92,4 +109,31 @@ function bool(v)
 		return false
 	end
 	return v ~= 0 and v ~= nil and v ~= "0" and v ~= "false" and v
+end
+
+function toprint(v)
+	if type(v) == "table" then
+		local length = #v
+		local count = 0
+		local values = ""
+		for k,v in pairs(v) do
+			count=count+1
+			values=values..k.."="..toprint(v)..","
+		end
+		return string.format("[%d,%d]{%s}",length,count,values:sub(1,-2))
+	elseif type(v) == "string" then
+		local length = #v
+		return string.format("[%d]\"%s\"",length,v)
+	end
+	return tostring(v)
+end
+
+function each(func,...)
+	local args = {...}
+	local out = {}
+	for i=1,#args do
+		out[#out+1] = func(args[i])
+	end
+	args=nil
+	return unpack(out)
 end
