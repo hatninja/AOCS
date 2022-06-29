@@ -9,8 +9,8 @@ Lua can be typically installed using a package manager. Windows users may find i
 
 __Running:__
 1. Clone the source to any location.
-2. Rename "Config" to lowercase "config"
-3. Run using the shell script `run.sh`, or with lua directly on `run.lua`
+2. Rename the folder "Config" to be lowercase "config"
+3. Run using the shell script `run.sh`, or with lua directly on `init.lua`
 
 ### License
 
