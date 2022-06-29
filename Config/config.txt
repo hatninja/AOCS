@@ -1,0 +1,22 @@
+# Name of the server that shows up on server list.
+name = Default AOS3
+# Short form for easy identification. Used in server messages.
+short_name = DA
+
+# Description of the server, which is visible on server list and upon joining.
+description = This is a default AOS3 server.
+
+# Base folder url for webAO clients.
+assets =
+
+# Colors
+white  = 0
+green  = 1
+red    = 2
+orange = 3
+blue   = 4
+yellow = 5
+rainbow= 6
+magenta= 7
+cyan   = 8
+grey   = 9
