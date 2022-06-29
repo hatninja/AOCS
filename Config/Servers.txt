@@ -1,3 +1,0 @@
-#Similar to serverlist.txt, but replace colon with semicolon.
-#(IP);(Port);(Name);(Description)
-localhost;27016;Sample Server
