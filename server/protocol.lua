@@ -418,7 +418,7 @@ output["SFX"] = function(self,sock, sfx)
 	end
 	--SFX only plays on emotes, so send an empty message to play immediately.
 
-	local msg = self.storage[sock].lastmsg or {char = "",name = ""}
+	local msg = clone(self.storage[sock].lastmsg) or {char = "",name = ""}
 	msg.pre     = nil
 	msg.message = nil
 	msg.append  = true

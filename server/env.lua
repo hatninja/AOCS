@@ -45,6 +45,7 @@ end
 
 --Clone a table's data.
 function clone(t)
+	if type(t) ~= "table" then return end
 	local new_t = {}
 	for k,v in pairs(t) do
 		if type(v) == "table" then
