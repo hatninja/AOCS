@@ -73,6 +73,8 @@ function server:update()
 
 		protocol:removeSock(sock)
 		process:removeClient(sock)
+
+		self.full = false
 	end
 
 	--Accept new connections.
