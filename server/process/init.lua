@@ -19,15 +19,7 @@ function process:init()
 	self:newArea("Lobby","lobby")
 
 	self.modules = {}
-	for i,dir in ipairs(data.getDir("./server/modules/")) do
-		local name         = dir:match("^(.-)%.")
-		local chunk        = safe(loadfile,"./server/modules/"..name..".lua") or safe(loadfile,"./server/modules/"..name.."/init.lua")
-		local module, err  = safe(chunk)
-		self.modules[name] = module
-		if not module then
-			print("Error with "..name..": "..err)
-		end
-	end
+	self:loadModules("./server/modules/",self.modules)
 
 	self.replay = {}
 
@@ -39,7 +31,17 @@ function process:resetConfig()
 	self.characters = data.readList("./config/characters.txt")
 	self.music      = data.readList("./config/music.txt")
 end
-
+function process:loadModules(folder, t)
+	for i,dir in ipairs(data.getDir(folder)) do
+		local name         = dir:match("^(.-)%.") or dir
+		local chunk        = safe(loadfile,"./server/modules/"..name..".lua") or safe(loadfile,"./server/modules/"..name.."/init.lua")
+		local module, err  = safe(chunk)
+		t[name] = module
+		if not module then
+			print("Error with "..name..": "..err)
+		end
+	end
+end
 --[[Updating]]
 function process:update()
 	local delta = (socket.gettime() - self.time_last)
@@ -154,9 +156,9 @@ function process:get(sock,head,...)
 		self:sendOOC(self,"Playing '"..tostring(...).."'")
 		self:send(self,"MUSIC",...)
 	end
-
-
-	if head == "SIDE" then self:get(sock,"MSG",{message="/pos "..tostring(...)}) end
+	if head == "SIDE" then
+		self:get(sock,"MSG",{message="/pos "..tostring(...)})
+	end
 	if head == "PING" then
 		self:send(sock,"STATUS",
 			(self.count), (#self.areas.." areas"),
