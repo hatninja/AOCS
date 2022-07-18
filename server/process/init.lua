@@ -2,7 +2,7 @@ local process = {}
 
 local MAXMEM = 1024*10 --How much memory to store in KiB.
 
-local IPID     = require("process.IPID")
+local IPID = require("process.IPID")
 
 --[[Initialization]]
 function process:init()
@@ -12,8 +12,11 @@ function process:init()
 
 	self.count = 0
 
-	self.clients = {}
 	self.sessions = {}
+	self.clients = {}
+
+	self.areas = {}
+	self:newArea("Lobby","lobby")
 
 	self.modules = {}
 	for i,dir in ipairs(data.getDir("./server/modules/")) do
@@ -25,9 +28,6 @@ function process:init()
 			print("Error with "..name..": "..err)
 		end
 	end
-
-	self.areas = {}
-	self:newArea("Lobby","lobby")
 
 	self.replay = {}
 
@@ -137,7 +137,7 @@ function process:get(sock,head,...)
 		for i,ses in pairs(self:getSessions(self:getArea(1))) do
 			taken[#taken+1] = ses.char
 		end
-		self:send(sock,"TAKEN",taken)
+		self:send(self:getArea(1),"TAKEN",taken)
 	end
 	if head == "MSG" and self:event("message",session,...) then
 		for i,ses in pairs(self:getSessions(self:getArea(1))) do
@@ -246,7 +246,7 @@ function process:removeClient(sock,reason)
 	log.monitor(monitor_proc,"Removed Client of ID: "..client.id)
 end
 function process:getClient(sock)
-	if type(cli)=="number" then
+	if type(sock)=="number" then
 		return self.clients[sock]
 	end
 	for id,client in pairs(self.clients) do
@@ -386,6 +386,14 @@ end
 function process:sendOOC(cli,msg,name)
 	self:send(cli,"MSG",{message=msg,name=name or config.short_name,server=true})
 end
+function process:sendMessage(cli,msg,char,emote,name)
+	if type(msg) == "table" then
+		local smsg = clone(msg)
+		self:send(cli,"MSG",smsg)
+		return
+	end
+	self:send(cli,"MSG",{message=msg,name=name,char=char,emote=emote,server=true})
+end
 
 --[[Module Helpers]]
 local createCallbackHandler = function()
@@ -424,6 +432,13 @@ function process:event(name,...)
 	end
 	return not cb.cancelled, cb:getValue()
 end
-
+function process:modulecall(module_name,func_name,...)
+	local module = self.modules[module_name]
+	if not module then return end
+	local func = module[func_name]
+	if func then
+		return func(module,...)
+	end
+end
 
 return process
