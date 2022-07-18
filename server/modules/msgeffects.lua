@@ -67,7 +67,6 @@ module.callbacks.message = function(self,cb, from,msg)
 	end
 
 	msg.message=message
-	print(message,toprint(msg))
 end
 
 return module
