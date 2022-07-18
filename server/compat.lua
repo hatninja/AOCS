@@ -16,7 +16,7 @@ mime = safe(require,"mime")
 bit = safe(require,"bit") or require("lib.bitop").bit
 sha1 = require("lib.sha1")
 
---Enviroment:
+--Environment:
 if table.unpack then
 	unpack = table.unpack
 end

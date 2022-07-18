@@ -136,7 +136,6 @@ end
 input["new"] = function(self,sock)
 	process:get(sock,"INFO")
 end
-
 input["HI"] = function(self,sock, hdid)
 	self.storage[sock].hdid = hdid
 end
@@ -149,15 +148,9 @@ input["askchaa"] = function(self,sock)
 	if self.storage[sock].done then return end
 	process:get(sock,"JOIN")
 end
-input["RC"] = function(self,sock)
---	self:buffer(sock,"SC#"..self:concatAO(process.characters).."#%")
-end
-input["RM"] = function(self,sock)
---	self:buffer(sock,"SM#Status#"..self:concatAO(process.music).."#%")
-end
+input["RC"] = function(self,sock) end
+input["RM"] = function(self,sock) end
 input["RD"] = function(self,sock)
-	--self:buffer(sock,"CharsCheck#0#%")
-	--self:buffer(sock,"DONE#%")
 	self.storage[sock].done = true
 end
 
@@ -167,7 +160,7 @@ end
 input["CC"] = function(self,sock, pid,id) --Choose Character.
 	process:get(sock,"CHAR", process.characters[(tointeger(id) or -1) + 1])
 end
-input["PW"] = function(self,sock, ...) --Send position
+input["PW"] = function(self,sock, ...) --Free Character (Choose Spectator)
 	process:get(sock,"CHAR")
 end input["FC"] = input["PW"]
 input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel) --Play Music
@@ -291,10 +284,9 @@ function protocol:send(sock,head,...)
 end
 
 output["INFO"] = function(self,sock)
-	self:buffer(sock,"decryptor#34#%")
-	self:buffer(sock,"ID#0#AOS3#git#%")
+	self:buffer(sock,"ID#0#AOCS#git#%")
 	self:buffer(sock,"PN#"..(process.count).."#0#"..self:escape(config.description).."%")
-	self:buffer(sock,"FL#fastloading#noencryption#yellowtext#flipping#deskmod#customobjections#modcall_reason#cccc_ic_support#arup#additive#effects#%")
+	self:buffer(sock,"FL#fastloading#noencryption#yellowtext#flipping#deskmod#customobjections#cccc_ic_support#arup#additive#effects#%")
 
 	if bool(config.assets) then
 		self:buffer(sock,"ASS#"..self:escape(config.assets).."#%")
@@ -303,13 +295,15 @@ end
 
 output["JOIN"] = function(self,sock)
 	local chars = #process.characters
-	local musics = #process.music+1 --"Status"
-	self:buffer(sock,"SI#"..chars.."#1#"..musics.."#%")
+	local musics = #process.music+1 --Bake-in "Status"
 
+	self:buffer(sock,"SI#"..chars.."#1#"..musics.."#%")
 	self:buffer(sock,"SC#"..self:concatAO(process.characters).."#%")
 	self:buffer(sock,"SM#Status#"..self:concatAO(process.music).."#%")
 
 	self:buffer(sock,"DONE#%")
+	self:buffer(sock,"HP#0#0#%")
+	self:buffer(sock,"HP#1#0#%")
 
 	self.storage[sock].done = true
 
@@ -364,7 +358,7 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= sfx and sfx.delay or 0
 
 	if ani and ani.name == "interject" then
-		t[#t+1]= tonumber(ani.shout) or "4&"..tostring(ani.shout)
+		t[#t+1]= tointeger(ani.shout) or "4&"..tostring(ani.shout)
 	else
 		t[#t+1]= 0
 	end
@@ -426,24 +420,6 @@ output["SFX"] = function(self,sock, sfx)
 	output["MSG"](self,sock, msg)
 end
 
-output["MUSIC"] = function(self,sock, track)
-	self:buffer(sock,"MC#"..self:escape(track).."#-1##1#0#2#%")
-end
-
-output["SCENE"] = function(self,sock, scene)
-	self:buffer(sock,"BN#"..self:escape(scene).."#%")
-end
-output["SIDE"] = function(self,sock, side)
-	self:buffer(sock,"SP#"..self:escape(side).."#%")
-end
-
-output["BAN"] = function(self,sock, reason)
-	self:buffer(sock,"KB#"..self:escape(reason).."#%")
-end
-output["NOTICE"] = function(self,sock, note)
-	self:buffer(sock,"BB#"..self:escape(note).."#%")
-end
-
 output["ANI"] = function(self,sock, ani)
 	if not ani or ani.wait then
 		self.storage[sock].ani = ani
@@ -466,26 +442,27 @@ output["ANI"] = function(self,sock, ani)
 	end
 end
 
---Use ping as a way to update information to clients.
+output["MUSIC"] = function(self,sock, track)
+	self:buffer(sock,"MC#"..self:escape(track).."#-1##1#0#2#%")
+end
+output["SCENE"] = function(self,sock, scene)
+	self:buffer(sock,"BN#"..self:escape(scene).."#%")
+end
+output["SIDE"] = function(self,sock, side)
+	self:buffer(sock,"SP#"..self:escape(side).."#%")
+end
+
+output["BAN"] = function(self,sock, reason)
+	self:buffer(sock,"KB#"..self:escape(reason).."#%")
+end
+output["NOTICE"] = function(self,sock, note)
+	self:buffer(sock,"BB#"..self:escape(note).."#%")
+end
 output["PONG"] = function(self,sock, side)
 	self:buffer(sock,"CHECK#%")
 end
 
 --AO Specific.
-output["BAR"] = function(self,sock, id,mode,value)
-	local bars = self.storage[sock].bars
-	if not bars then
-		bars = {}
-		self.storage[sock].bars = bars
-	end
-	if mode == "+" then
-		bars[id] = (bars[id] or 0) + value
-	end
-	if mode == "=" then
-		bars[id] = value
-	end
-	self:buffer(sock,"HP#"..id.."#"..bars[id].."#%")
-end
 output["STATUS"] = function(self,sock, user_count,areas,session,cm)
 	self:buffer(sock,"ARUP#0#"..(user_count).."#%")
 	self:buffer(sock,"ARUP#3#"..(areas).."#%")
