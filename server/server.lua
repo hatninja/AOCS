@@ -10,6 +10,8 @@ function server:init()
 	self.closed = {}
 	self.buf = {}
 	self.got = {}
+
+	self.full = false
 end
 
 function server:listen(ip, port)
@@ -74,7 +76,7 @@ function server:update()
 	end
 
 	--Accept new connections.
-	if self.socket and #self.sockets < MAXLISTEN then
+	if self.socket and not self.full then
 		repeat
 			local sock,err = self.socket:accept()
 			if sock then
@@ -88,6 +90,7 @@ function server:update()
 				protocol:acceptSock(sock)
 			end
 		until not sock
+		self.full = #self.sockets >= MAXLISTEN
 	end
 end
 

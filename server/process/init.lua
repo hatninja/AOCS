@@ -67,7 +67,10 @@ end
 function process:updateSock(sock)
 	local client = self:getClient(sock)
 	if not client then
-		--Server List Observer.
+		--Kick all observers if server reached max sockets.
+		if server.full then
+			sock:close()
+		end
 		return
 	end
 
