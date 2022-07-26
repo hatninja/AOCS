@@ -26,14 +26,13 @@ function IPID:save()
 end
 
 function IPID:get(ip)
-	local id = self.storage[ip] or self:new(ip)
-	return id
+	return self.storage[ip] or self:new(ip)
 end
 
 function IPID:new(ip)
 	self.last=self.last+1
 	self.storage[ip] = self.last
-	return
+	return self.last
 end
 
 return IPID

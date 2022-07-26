@@ -55,13 +55,15 @@ function process:update()
 		print((usage-collectgarbage("count")).."KiB in memory freed.")
 	end
 
-	if not server.socket then --Server is closing.
+	--If server is closing.
+	if not server.socket then
 		for k,v in pairs(self.sessions) do
 			self:removeSession(v)
 		end
 		for k,v in pairs(self.clients) do
 			self:removeClient(v)
 		end
+		IPID:save()
 	end
 end
 function process:updateSock(sock)
