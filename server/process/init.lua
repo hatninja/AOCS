@@ -124,11 +124,10 @@ end
 
 function process:get(sock,head,...)
 	if head == "INFO" then self:send(sock,"INFO");return end
-	if head == "PING" then self:send(sock,"PONG");return end
 
 	local client = self:getClient(sock)
 
-	log.monitor(monitor_proc,(client and"Client["..client.id.."]: "or"GET: ")..head, each(toprint,...))
+	log.monitor(monitor_proc and head ~= "STATUS",(client and"Client["..client.id.."]: "or"GET: ")..head, each(toprint,...))
 
 	if head == "JOIN" and not client then
 		self:send(sock,"JOIN")
@@ -168,10 +167,10 @@ function process:get(sock,head,...)
 	if head == "SIDE" then
 		self:get(sock,"MSG",{message="/pos "..tostring(...)})
 	end
-	if head == "PING" then
+	if head == "STATUS" then
 		self:send(sock,"STATUS",
 			(self.count), (#self.areas.." areas"),
-			("Session ["..session.id.."]("..index..")"), "Free"
+			("User ["..session.id.."]("..index..")"), "None"
 		)
 	end
 end

@@ -152,10 +152,12 @@ input["RC"] = function(self,sock) end
 input["RM"] = function(self,sock) end
 input["RD"] = function(self,sock)
 	self.storage[sock].done = true
+	process:get(sock,"STATUS")
 end
 
 input["CH"] = function(self,sock)
-	process:get(sock,"PING")
+	self:buffer(sock,"CHECK#%")
+	process:get(sock,"STATUS")
 end
 input["CC"] = function(self,sock, pid,id) --Choose Character.
 	process:get(sock,"CHAR", process.characters[(tointeger(id) or -1) + 1])
@@ -457,9 +459,6 @@ output["BAN"] = function(self,sock, reason)
 end
 output["NOTICE"] = function(self,sock, note)
 	self:buffer(sock,"BB#"..self:escape(note).."#%")
-end
-output["PONG"] = function(self,sock, side)
-	self:buffer(sock,"CHECK#%")
 end
 
 --AO Specific.
