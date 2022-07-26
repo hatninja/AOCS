@@ -11,9 +11,9 @@ module.callbacks.messageto = function(self,cb, from,to,msg)
 	local g = message:gsub("%s",""):lower():find("notguilty")
 	local ng = message:gsub("%s",""):lower():find("guilty")
 	if g then
-		self:send(recv,"ANI",{name="guilty",delay=g})
+		self:send(to,"ANI",{name="guilty",delay=g})
 	elseif ng then
-		self:send(recv,"ANI",{name="notguilty",delay=ng})
+		self:send(to,"ANI",{name="notguilty",delay=ng})
 	end
 end
 

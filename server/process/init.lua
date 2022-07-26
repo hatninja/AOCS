@@ -160,7 +160,7 @@ function process:get(sock,head,...)
 		self:send(self,"SFX",...)
 	end
 	if head == "MUSIC" then
-		self:sendOOC(self,"Playing '"..tostring(...).."'")
+		self:sendMsg(self,"Playing '"..tostring(...).."'")
 		self:send(self,"MUSIC",...)
 	end
 	if head == "SIDE" then
@@ -392,11 +392,12 @@ end
 function process:catchup(user) --Send history
 end
 
-function process:sendOOC(cli,msg,name)
-	self:send(cli,"MSG",{message=msg,name=name or config.short_name,server=true})
-end
-function process:sendMessage(cli,msg,char,emote,name)
-	self:send(cli,"MSG",{message=msg,name=name,char=char,emote=emote,server=true})
+function process:sendMsg(to,msg,name,char,emote)
+	local ooc_name
+	if not char and not emote then
+		ooc_name = config.short_name
+	end
+	self:send(to,"MSG",{message=msg,name=name or ooc_name,char=char,emote=emote,server=true})
 end
 
 --[[Module Helpers]]
