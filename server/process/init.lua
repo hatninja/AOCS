@@ -78,7 +78,11 @@ function process:updateSock(sock)
 	if not session then
 		session = self:findMirror(client) or self:newSession()
 		self:attachClient(session,client)
-		self:moveto(session,self:getArea(1))
+
+		if not session.area then --New session.
+			self:moveto(session, self:getArea(1), true)
+			self:event("new_session",session)
+		end
 
 		self:refresh(client)
 		self:catchup(client)
@@ -392,11 +396,6 @@ function process:sendOOC(cli,msg,name)
 	self:send(cli,"MSG",{message=msg,name=name or config.short_name,server=true})
 end
 function process:sendMessage(cli,msg,char,emote,name)
-	if type(msg) == "table" then
-		local smsg = clone(msg)
-		self:send(cli,"MSG",smsg)
-		return
-	end
 	self:send(cli,"MSG",{message=msg,name=name,char=char,emote=emote,server=true})
 end
 
