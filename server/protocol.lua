@@ -308,8 +308,6 @@ output["JOIN"] = function(self,sock)
 	self:buffer(sock,"HP#1#0#%")
 
 	self.storage[sock].done = true
-
-	output["PONG"](self,sock)
 end
 
 output["CHAR"] = function(self,sock, id_char)
