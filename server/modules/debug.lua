@@ -9,13 +9,13 @@ module.callbacks.message = function(self,cb, from,msg)
 	if msg.message == "reconfig" then
 		process:resetConfig()
 		process:sendMsg(from,"Reloaded Config","debug")
+		cb:cancel() return
 	end
 	--Hot Reload
 	if msg.message == "reload" then
 		process:loadModules("./server/modules/",process.modules)
 		process:sendMsg(from,"Reloaded Modules","debug")
-		cb:cancel()
-		return
+		cb:cancel() return
 	end
 	--Simulate a full server.
 	if msg.message == "fill" then
@@ -25,8 +25,7 @@ module.callbacks.message = function(self,cb, from,msg)
 		else
 			process:sendMsg(from,"Simulating un-full server.","debug")
 		end
-		cb:cancel()
-		return
+		cb:cancel() return
 	end
 end
 return module
