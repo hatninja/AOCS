@@ -145,15 +145,12 @@ input["ID"] = function(self,sock, software,version)
 end
 
 input["askchaa"] = function(self,sock)
-	if self.storage[sock].done then return end
 	process:get(sock,"JOIN")
+	process:get(sock,"STATUS")
 end
 input["RC"] = function(self,sock) end
 input["RM"] = function(self,sock) end
-input["RD"] = function(self,sock)
-	self.storage[sock].done = true
-	process:get(sock,"STATUS")
-end
+input["RD"] = function(self,sock) end
 
 input["CH"] = function(self,sock)
 	self:buffer(sock,"CHECK#%")
@@ -228,7 +225,7 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	if effect[2] then
 		process:get(sock,"SFX",{name=effect[2],wait=true})
 	end
-	if shout[1] then
+	if bool(shout[1]) then
 		process:get(sock,"ANI",{
 			name  = "interject",
 			shout = shout[2] or tonumber(shout[1]),
@@ -306,8 +303,6 @@ output["JOIN"] = function(self,sock)
 	self:buffer(sock,"DONE#%")
 	self:buffer(sock,"HP#0#0#%")
 	self:buffer(sock,"HP#1#0#%")
-
-	self.storage[sock].done = true
 end
 
 output["CHAR"] = function(self,sock, id_char)
@@ -423,6 +418,7 @@ end
 output["ANI"] = function(self,sock, ani)
 	if not ani or ani.wait then
 		self.storage[sock].ani = ani
+		return
 	end
 	if ani.name == "witnesstestimony" then
 		self:buffer(sock,"RT#testimony1#%")
