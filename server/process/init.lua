@@ -123,46 +123,62 @@ function process:getSocks(obj)
 end
 
 function process:get(sock,head,...)
-	if head == "INFO" then self:send(sock,"INFO");return end
-
 	local client = self:getClient(sock)
+	if not client then
+		if head == "INFO" then
+			self:send(sock,"INFO")
+			return
+		end
+		if head == "JOIN" then
+			self:send(sock,"JOIN")
 
-	log.monitor(monitor_proc and head ~= "STATUS",(client and"Client["..client.id.."]: "or"GET: ")..head, each(toprint,...))
-
-	if head == "JOIN" and not client then
-		self:send(sock,"JOIN")
-
-		self:newClient(sock)
-		self:updateSock(sock)
+			self:newClient(sock)
+			self:updateSock(sock)
+		end
+		return
 	end
 
-	if not client then return end
 	local session,index = self:getSession(client)
+	local area = self:getArea(session.area)
+
+	log.monitor(monitor_proc and head ~= "STATUS","Client["..client.id.."]: "..head, each(toprint,...))
 
 	if head == "CHAR" then
 		self:send(sock,"CHAR",...)
 		session.char = ...
 
 		local taken = {}
-		for i,ses in pairs(self:getSessions(self:getArea(1))) do
+		for k,ses in pairs(area.sessions) do
 			taken[#taken+1] = ses.char
 		end
-		self:send(self:getArea(1),"TAKEN",taken)
+		self:send(area,"TAKEN",taken)
 	end
 	if head == "MSG" and self:event("message",session,...) then
-		for i,ses in pairs(self:getSessions(self:getArea(1))) do
+		for k,ses in pairs(area.sessions) do
 			local msg = clone(...)
 			if self:event("messageto",session,ses,msg) then
 				self:send(ses,"MSG",msg)
 			end
 		end
 	end
-	if head == "SFX" then
-		self:send(self,"SFX",...)
+	if head == "SFX" and self:event("sound",session,...) then
+		for k,ses in pairs(area.sessions) do
+			local sfx = clone(...)
+			if self:event("soundto",session,ses,sfx) then
+				self:send(ses,"SFX",sfx)
+			end
+		end
 	end
-	if head == "MUSIC" then
-		self:sendMsg(self,"Playing '"..tostring(...).."'")
-		self:send(self,"MUSIC",...)
+	if head == "ANI" and self:event("animation",session,...) then
+		for k,ses in pairs(area.sessions) do
+			local ani = clone(...)
+			if self:event("animationto",session,ses,ani) then
+				self:send(ses,"ANI",ani)
+			end
+		end
+	end
+	if head == "MUSIC" and self:event("music",session,...) then
+		self:send(area,"MUSIC",...)
 	end
 	if head == "SIDE" then
 		self:get(sock,"MSG",{message="/pos "..tostring(...)})
@@ -170,7 +186,7 @@ function process:get(sock,head,...)
 	if head == "STATUS" then
 		self:send(sock,"STATUS",
 			(self.count), (#self.areas.." areas"),
-			("User ["..session.id.."]("..index..")"), "None"
+			("User ["..session.id.."]("..index..")"), area.cm or "None"
 		)
 	end
 end
@@ -185,7 +201,6 @@ function process:newSession(area)
 		_session = true,
 	}
 	session.id = firstempty(self.sessions)
-	self.sessions[session.id] = setmetatable(session,session_mt)
 	log.monitor(monitor_proc,"New Session of ID: "..session.id)
 	return session
 end
@@ -366,7 +381,7 @@ function process:moveto(session,area,override)
 		if old_area then
 			table.remove(area.sessions,findindex(area,session))
 		end
-		session.area = area
+		session.area = area.id
 		table.insert(area.sessions,1,session)
 
 		log.monitor(monitor_proc,"Session["..session.id.."] moved to Area["..area.id.."]")
