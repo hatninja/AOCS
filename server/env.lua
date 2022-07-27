@@ -12,10 +12,10 @@ end
 
 --Return first empty indice.
 function firstempty(t)
-	local i=0
-	repeat
+	local i=1
+	while t[i] do
 		i=i+1
-	until not t[i]
+	end
 	return i
 end
 

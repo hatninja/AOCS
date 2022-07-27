@@ -144,7 +144,7 @@ function process:get(sock,head,...)
 	log.monitor(monitor_proc and head ~= "STATUS","Client["..client.id.."]: "..head, each(toprint,...))
 
 	if head == "CHAR" then
-		self:send(sock,"CHAR",...)
+		self:send(session,"CHAR",...)
 		session.char = ...
 
 		local taken = {}
@@ -201,6 +201,7 @@ function process:newSession(area)
 		_session = true,
 	}
 	session.id = firstempty(self.sessions)
+	self.sessions[session.id] = session
 	log.monitor(monitor_proc,"New Session of ID: "..session.id)
 	return session
 end
@@ -388,13 +389,10 @@ function process:moveto(session,area,override)
 	end
 end
 
---Search for a session that's eligible for mirroring. Ignore dual clients.
---TODO: Check for client association to avoid mirroring two users.
---TODO: Also check if the session is ghosted.
 function process:findMirror(cli)
 	for k,session in pairs(self.sessions) do
 		for index,client in ipairs(session.clients) do
-			if cli.ipid == client.ipid then
+			if cli.ip == client.ip then
 			--and not (cli.software == client.software and cli.hdid == client.hdid) then
 				log.monitor(monitor_proc,"Found mirror Client["..client.id.."] and Session["..session.id.."]")
 				return session, client
