@@ -49,9 +49,9 @@ function protocol:updateSock(sock)
 				break
 			end
 
-			--If a packet cant be read in the data, something has gone terribly wrong.,
+			--If a packet cannot be read properly, something has gone terribly wrong.
 			if not op and #server.got[sock] ~= "" then
-				server.got[sock] = "" --Reset the buffer entirely.
+				server.got[sock] = "" --Clear the buffer entirely.
 			end
 
 			if #server.got[sock]-(packetlength or 0) >= 0 then
@@ -62,7 +62,7 @@ function protocol:updateSock(sock)
 
 	--Send handshakes to new clients.
 	if storage.new then
-		self:readAO(sock,"new") --For organization's sake, send to input table.
+		self:readAO(sock,"_handshake") --For organization's sake, send to input table.
 		storage.new = false
 	end
 
@@ -133,7 +133,7 @@ function protocol:readAO(sock,head,...)
 	log.monitor(monitor_ao,"Unknown Message: \""..head.."\"",self:concatAO{...})
 end
 
-input["new"] = function(self,sock)
+input["_handshake"] = function(self,sock)
 	process:get(sock,"INFO")
 end
 input["HI"] = function(self,sock, hdid)
@@ -159,9 +159,6 @@ end
 input["CC"] = function(self,sock, pid,id) --Choose Character.
 	process:get(sock,"CHAR", process.characters[(tointeger(id) or -1) + 1])
 end
-input["PW"] = function(self,sock, ...) --Free Character (Choose Spectator)
-	process:get(sock,"CHAR")
-end input["FC"] = input["PW"]
 input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel) --Play Music
 	if track == "Status" then return end
 	process:get(sock,"MUSIC",self:unescape(track))
@@ -173,11 +170,15 @@ input["SP"] = function(self,sock, ...) --Send position
 	process:get(sock,"SIDE",...)
 end
 
+local msid = 1 --Message source identifier.
+
 input["CT"] = function(self,sock, name,message) --OOC Message
 	process:get(sock,"MSG",{
-		name = self:unescape(name),
-		message = self:unescape(message)
+		name    = self:unescape(name),
+		message = self:unescape(message),
+		msid    = msid,
 	})
+	msid=msid+1
 end
 input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local args = {...}
@@ -220,16 +221,22 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 			delay  = sfx_delay or 0,
 			looping= sfx_looping,
 			wait   = true,
+			msid   = msid,
 		})
 	end
 	if effect[2] then
-		process:get(sock,"SFX",{name=effect[2],wait=true})
+		process:get(sock,"SFX",{
+			name  = effect[2],
+			wait  = true,
+			msid  = msid,
+		})
 	end
 	if bool(shout[1]) then
 		process:get(sock,"ANI",{
 			name  = "interject",
 			shout = shout[2] or tonumber(shout[1]),
 			wait  = true,
+			msid  = msid,
 		})
 	end
 	process:get(sock,"MSG",{
@@ -251,7 +258,9 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 
 		id_char = id_char,
 		author  = sock,
+		msid    = msid,
 	})
+	msid=msid+1
 end
 
 --Default Encrypted Messages. Some clients still use these.
@@ -268,7 +277,6 @@ input["43DB"] = input["CT"]
 input["4D90"] = input["MS"]
 input["4D80"] = input["MC"]
 input["4422"] = input["DC"]
-
 
 local output = {}
 function protocol:send(sock,head,...)
@@ -325,9 +333,11 @@ output["MSG"] = function(self,sock, msg)
 	end
 
 	--Sound effect to play
-	local sfx = self.storage[sock].sfx
+	local sfx = self.storage[sock].sfx or {}
+	sfx = (not sfx.msid or sfx.msid == msg.msid) and sfx
 	--Read any screen animations to play, such as an interjection.
-	local ani = self.storage[sock].ani
+	local ani = self.storage[sock].ani or {}
+	ani = (not ani.msid or ani.msid == msg.msid) and ani
 
 	--IC Message
 	t[#t+1]= "chat"
@@ -336,23 +346,21 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= msg.emote or ""
 	t[#t+1]= msg.message or ""
 	t[#t+1]= msg.side
-	t[#t+1]= sfx and sfx.name or 1
+	t[#t+1]= sfx.name or 1
 	t[#t+1]= 1 --emote_mod
 
-	--If this client is the author, match client's char_id to clear message.
-	if msg.author == sock then
-		t[#t+1]= self.storage[sock].char_id or 0
-	else
+	--If this client isn't the author but char_id still matches, increment char_id so client's message wont be cleared.
+	if msg.author ~= sock then
 		local id = findindex(process.characters, msg.id_char) or msg.id_char or 0
 		if self.storage[sock].char_id == id then
 			id = (id+1) % #process.characters
 		end
-		t[#t+1]= id
 	end
+	t[#t+1]= id or self.storage[sock].char_id or 0
 
-	t[#t+1]= sfx and sfx.delay or 0
+	t[#t+1]= sfx.delay or 0
 
-	if ani and ani.name == "interject" then
+	if ani.name == "interject" then
 		t[#t+1]= tointeger(ani.shout) or "4&"..tostring(ani.shout)
 	else
 		t[#t+1]= 0
@@ -366,7 +374,7 @@ output["MSG"] = function(self,sock, msg)
 	--Pair Section:
 	local blank = not msg.emote
 	if bool(msg.preserve) then
-		local lastmsg = self.storage[sock].lastmsg
+		local lastmsg = self.storage[sock].lastmsg or {}
 		t[#t+1]= 0
 		t[#t+1]= lastmsg.char or ""
 		t[#t+1]= lastmsg.emote or ""
@@ -383,7 +391,7 @@ output["MSG"] = function(self,sock, msg)
 	end
 
 	t[#t+1]= bool(msg.nowait) and 1 or 0
-	t[#t+1]= bool(sfx and sfx.looping) and 1 or 0 --looping_sfx
+	t[#t+1]= bool(sfx.looping) and 1 or 0 --looping_sfx
 	t[#t+1]= bool(msg.shake) and 1 or 0 --shake
  	t[#t+1]= "" --Shake
 	t[#t+1]= bool(msg.realize) and "1" or "" --Flash
@@ -405,8 +413,8 @@ output["SFX"] = function(self,sock, sfx)
 		self.storage[sock].sfx = sfx
 		return
 	end
-	--SFX only plays on emotes, so send an empty message to play immediately.
 
+	--In AO2, SFX only plays on emotes, so send an empty message to play immediately.
 	local msg = clone(self.storage[sock].lastmsg) or {char = "",name = ""}
 	msg.pre     = nil
 	msg.message = nil
