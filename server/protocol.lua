@@ -97,15 +97,16 @@ end
 
 --Always output a string for safety's sake.
 function protocol:escape(str)
-	return (not str) and "nil" or str:gsub("%#","<num>")
+	return type(str) ~= "string" and type(str) or str
+	:gsub("%#","<num>")
 	:gsub("%$","<dollar>")
 	:gsub("%%","<percent>")
 	:gsub("%&","<and>")
 	:gsub("\\n","\n") --For funsies!
 end
---Double as validation for empty values.
 function protocol:unescape(str)
-	return str and str ~= "" and str:gsub("%<num%>","#")
+	return type(str) == "string" and str
+	:gsub("%<num%>","#")
 	:gsub("%<dollar%>","$")
 	:gsub("%<percent%>","%%")
 	:gsub("%<and%>","&")
@@ -161,10 +162,10 @@ input["CC"] = function(self,sock, pid,id) --Choose Character.
 end
 input["MC"] = function(self,sock, track, char_id, name, effects, looping, channel) --Play Music
 	if track == "Status" then return end
-	process:get(sock,"MUSIC",self:unescape(track))
+	process:get(sock,"MUSIC", self:unescape(track))
 end
 input["ZZ"] = function(self,sock, reason) --Mod Call
-	process:get(sock,"MODPLZ", reason)
+	process:get(sock,"MODPLZ", self:unescape(reason))
 end
 input["SP"] = function(self,sock, ...) --Send position
 	process:get(sock,"SIDE",...)
@@ -204,18 +205,18 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local append       = tointeger(args[20])
 	local effect       = split(self:unescape(args[21]),"||")
 
-	if name == "0" then name = nil end
-	if emote == "-" then emote = nil end
-
 	local id_char = process.characters[(char_id or -1) +1]
-	local pair = process.characters[(pair_id or -1) +1]
+	local pair    = process.characters[(pair_id or -1) +1]
 
+	if name == "" then
+		name = nil
+	end
 	if not bool(emote_mod) or pre == "-" then
 		pre = nil
 		sfx_name = nil
 	end
 
-	if sfx_name then
+	if bool(sfx_name) then
 		process:get(sock,"SFX",{
 			name   = sfx_name,
 			delay  = sfx_delay or 0,
@@ -224,7 +225,7 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 			msid   = msid,
 		})
 	end
-	if effect[2] then
+	if bool(effect[2]) then
 		process:get(sock,"SFX",{
 			name  = effect[2],
 			wait  = true,
@@ -393,7 +394,7 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= bool(msg.nowait) and 1 or 0
 	t[#t+1]= bool(sfx.looping) and 1 or 0 --looping_sfx
 	t[#t+1]= bool(msg.shake) and 1 or 0 --shake
- 	t[#t+1]= "" --Shake
+ 	t[#t+1]= "" --Shake (Frames)
 	t[#t+1]= bool(msg.realize) and "1" or "" --Flash
 	t[#t+1]= "" --SFX
 	t[#t+1]= bool(msg.append) and 1 or 0
