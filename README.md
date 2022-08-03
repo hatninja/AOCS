@@ -1,23 +1,24 @@
-# AOCS
-This is a Attorney Online 2 server written in pure lua using luasocket.
+This is a chat server written in pure lua with the help of [luasocket](https://aiq0.github.io/luasocket/index.html). It is intended for use with [AO2](https://github.com/AttorneyOnline), and supports basic roleplay features.
 
+AOCS aims to create a simplified server experience, with a focus on few but high-quality features. For a more fully-featured server, check out the previous [AOLS2](https://github.com/hatninja/AOLS2).
 
-### Set-up
+## Setting Up
 Note that this project is still in an early state, and is not ready to be used outside of development.
 
-__Running:__
-1. Clone the source to any location.
-2. Rename the folder "Config" to be lowercase "config"
-3. Run using the shell script `run.sh`, or with lua directly on `init.lua`
+#### Requirements:
+You can find `lua` and `luarocks` through your distribution's package manager. Install luasocket using `luarocks install luasocket`.
+
+#### Running:
+1. Clone this repository.
+2. Duplicate `default_config/` and name the new folder as "config"
+3. Run by executing `run.sh`
+ * Alternatively, run with lua directly on `init.lua` (Make sure the current directory is the containing folder.)
 
 ### License
-
-This project is under the MIT License. See [LICENSE.md](./LICENSE.md) for detail.  
-
-Additionally, the following libraries are included inside the project:  
+This project and its included libraries are under the [MIT License](./LICENSE.md).  
 
 [sha1.lua](https://github.com/kikito/sha1.lua)  
 Copyright (c) 2013 Enrique García Cota + Eike Decker + Jeffrey Friedl  
 
 [bitop-lua](https://github.com/AlberTajuelo/bitop-lua)  
-Copyright (c) 2008-2011 David Manura.  
+Copyright (c) 2008-2011 David Manura.
