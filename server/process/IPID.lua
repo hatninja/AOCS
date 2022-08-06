@@ -22,7 +22,7 @@ function IPID:save()
 	for ip,id in pairs(self.storage) do
 		table.insert(list,id.." "..ip)
 	end
-	data.saveList("./data/IPID.txt")
+	data.saveList("./data/IPID.txt",list)
 end
 
 function IPID:get(ip)

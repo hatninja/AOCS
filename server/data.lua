@@ -25,7 +25,7 @@ end
 
 data.readList = function(dir)
 	local t = {}
-	for line in ("\n"..data.read(dir)):gmatch("([^\n]+)\r?") do
+	for line in data.read(dir):gmatch("([^\n]+)\r?") do
 		if string.find(line,"%S") and string.sub(line,1,1) ~= "#" then
 			table.insert(t,line)
 		end
@@ -35,7 +35,7 @@ end
 
 data.saveList = function(dir,list)
 	local dat = table.concat(list,"\n")
-	data.write(dir,dat.."\n")
+	data.save(dir,dat.."\n")
 end
 
 data.readConf = function(dir)
@@ -59,6 +59,7 @@ data.getDir = function(dir)
 	for line in file:lines() do
 		items[#items+1] = line
 	end
+	file:close()
 	return items
 end
 
