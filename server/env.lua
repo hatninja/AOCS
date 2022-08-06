@@ -121,10 +121,10 @@ function toprint(v)
 			count=count+1
 			values=values..k.."="..toprint(v)..","
 		end
-		return string.format("[%d,%d]{%s}",length,count,values:sub(1,-2))
+		return string.format("{%s}",values:sub(1,-2))
 	elseif type(v) == "string" then
 		local length = #v
-		return string.format("[%d]\"%s\"",length,v)
+		return string.format("\"%s\"",v)
 	end
 	return tostring(v)
 end
