@@ -6,7 +6,7 @@
 --Merge two tables together.
 function merge(t, t2)
 	for k,v in pairs(t2) do
-		t[k] = t[k] or v
+		t[k] = t2[k] or v
 	end
 end
 
@@ -30,14 +30,6 @@ end
 function findkey(t,match)
 	for key,value in pairs(t) do
 		if value == match then
-			return key
-		end
-	end
-end
-function findamong(t,match,key)
-	for key,value in pairs(t) do
-		if type(value) == "table"
-		and value[name] == match then
 			return key
 		end
 	end
