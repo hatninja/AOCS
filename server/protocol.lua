@@ -1,3 +1,6 @@
+--protocol.lua
+--Communicates with clients in their protocols. Sends data to Process for important actions.
+
 local protocol = {}
 
 function protocol:init()
@@ -8,7 +11,7 @@ function protocol:acceptSock(sock)
 	log.monitor(monitor_sock,"New Connection!:",sock)
 	self.storage[sock] = {
 		new=true,
-		web=true,
+		web="",
 	}
 end
 function protocol:removeSock(sock)
@@ -24,10 +27,9 @@ function protocol:updateSock(sock)
 		local reply, user_agent = web.generateResponse(server.got[sock])
 		if reply then
 			log.monitor(monitor_web,"Upgrade Request: [[\n"..server.got[sock].."]]")
-			storage.web = ""
 			storage.user_agent = user_agent
 			server.buf[sock] = reply
-			server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)")
+			server.got[sock] = string.match(server.got[sock],"\r\n\r\n(.*)") or ""
 		else
 			storage.web = false
 		end
@@ -46,7 +48,6 @@ function protocol:updateSock(sock)
 				sock:send(pong,1,#pong)
 			elseif op == 8 then --Client wants to close
 				sock:close()
-				break
 			end
 
 			--If a packet cannot be read properly, something has gone terribly wrong.
@@ -54,8 +55,9 @@ function protocol:updateSock(sock)
 				server.got[sock] = "" --Clear the buffer entirely.
 			end
 
-			if #server.got[sock]-(packetlength or 0) >= 0 then
-				server.got[sock] = server.got[sock]:sub((packetlength or 0)+1,-1)
+			local plength = packetlength or 0
+			if #server.got[sock]-plength >= 0 then
+				server.got[sock] = string.sub(server.got[sock], plength+1,-1)
 			end
 		until not op
 	end
@@ -85,14 +87,12 @@ function protocol:updateSock(sock)
 	end
 end
 function protocol:buffer(sock, msg)
-	if not sock then error("Socket object is invalid!",2) end
-
 	local data = msg
 	if self.storage[sock].web then
 		data = web.encode(msg,1,false,true)
 	end
-	log.monitor(monitor_ao,"Sent: ",data)
-	server:send(sock, data)
+	server.buf[sock] = server.buf[sock] .. data
+	log.monitor(monitor_ao,"Sent to "..tostring(sock)..": "..data)
 end
 
 --Always output a string for safety's sake.
@@ -102,7 +102,6 @@ function protocol:escape(str)
 	:gsub("%$","<dollar>")
 	:gsub("%%","<percent>")
 	:gsub("%&","<and>")
-	:gsub("\\n","\n") --For funsies!
 end
 function protocol:unescape(str)
 	return type(str) == "string" and str
@@ -126,12 +125,10 @@ end
 
 local input = {}
 function protocol:readAO(sock,head,...)
+	log.monitor(monitor_ao,"Message from "..tostring(sock)..": \""..head.."\"",self:concatAO{...})
 	if input[head] then
-		log.monitor(monitor_ao,"Message: \""..head.."\"",self:concatAO{...})
 		input[head](self,sock,...)
-		return
 	end
-	log.monitor(monitor_ao,"Unknown Message: \""..head.."\"",self:concatAO{...})
 end
 
 input["_handshake"] = function(self,sock)
@@ -147,13 +144,10 @@ end
 
 input["askchaa"] = function(self,sock)
 	process:get(sock,"JOIN")
-	process:get(sock,"STATUS")
+	--process:get(sock,"STATUS")
 end
-input["RC"] = function(self,sock) end
-input["RM"] = function(self,sock) end
-input["RD"] = function(self,sock) end
 
-input["CH"] = function(self,sock)
+input["CH"] = function(self,sock) --Ping
 	self:buffer(sock,"CHECK#%")
 	process:get(sock,"STATUS")
 end
@@ -193,22 +187,22 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 	local emote_mod    = tointeger(args[8])
 	local char_id      = tointeger(args[9])
 	local sfx_delay    = tonumber(args[10])
-	local shout        = split(args[11],"%&")
+	local shout        = split(args[11],"%&") or {}
 	local present      = tointeger(args[12])
 	local flip         = tointeger(args[13])
 	local realize      = tointeger(args[14])
 	local color        = tointeger(args[15])
 	local name         = self:unescape(args[16])
 	local pair_id      = tointeger(args[17])
-	local offset       = split(args[18],"%&")
+	local offset       = split(args[18],"%&") or {}
 	local nowait       = tointeger(args[19])
 	local append       = tointeger(args[20])
-	local effect       = split(self:unescape(args[21]),"||")
+	local effect       = split(self:unescape(args[21]),"||") or {}
 
 	local id_char = process.characters[(char_id or -1) +1]
 	local pair    = process.characters[(pair_id or -1) +1]
 
-	if name == "" then
+	if not bool(name) then
 		name = nil
 	end
 	if not bool(emote_mod) or pre == "-" then
@@ -216,11 +210,10 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 		sfx_name = nil
 	end
 
-	if bool(sfx_name) then
+	if bool(sfx_name) and sfx_name ~= "1" then
 		process:get(sock,"SFX",{
 			name   = sfx_name,
 			delay  = sfx_delay or 0,
-			looping= sfx_looping,
 			wait   = true,
 			msid   = msid,
 		})
@@ -249,7 +242,6 @@ input["MS"] = function(self,sock, ...) --IC Message (HERE WE GO!)
 		pre     = pre,
 		color   = color,
 
-		--Miscellaneous toggles.
 		append  = append,
 		nowait  = nowait,
 		realize = realize,
@@ -268,27 +260,19 @@ end
 input["615810BC07D139"] = input["askchaa"]
 input["48E0"] = input["HI"]
 input["493F"] = input["ID"]
-input["529E"] = input["RC"]
-input["5290"] = input["RM"]
-input["5299"] = input["RD"]
 input["43CC"] = input["CC"]
 input["5A37"] = input["ZZ"]
 input["43C7"] = input["CH"]
 input["43DB"] = input["CT"]
 input["4D90"] = input["MS"]
 input["4D80"] = input["MC"]
-input["4422"] = input["DC"]
 
 local output = {}
 function protocol:send(sock,head,...)
 	if type(sock) ~= "userdata" then error("Expected client socket at arg #1!",2) end
 	if type(head) ~= "string" then error("Expected string (packet header) at arg #2!",2) end
-
-	if output[head] then
-		output[head](self,sock,...)
-	else
-		error("Attempt to send bogus packet! "..tostring(head), 2)
-	end
+	if not output[head] then return end
+	output[head](self,sock,...)
 end
 
 output["INFO"] = function(self,sock)
@@ -302,10 +286,7 @@ output["INFO"] = function(self,sock)
 end
 
 output["JOIN"] = function(self,sock)
-	local chars = #process.characters
-	local musics = #process.music+1 --Bake-in "Status"
-
-	self:buffer(sock,"SI#"..chars.."#1#"..musics.."#%")
+	self:buffer(sock,"SI#"..(#process.characters).."#1#"..(#process.music+1).."#%")
 	self:buffer(sock,"SC#"..self:concatAO(process.characters).."#%")
 	self:buffer(sock,"SM#Status#"..self:concatAO(process.music).."#%")
 
@@ -346,15 +327,15 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= msg.char
 	t[#t+1]= msg.emote or ""
 	t[#t+1]= msg.message or ""
-	t[#t+1]= msg.side
+	t[#t+1]= msg.side or ""
 	t[#t+1]= sfx.name or 1
 	t[#t+1]= 1 --emote_mod
 
 	--If this client isn't the author but char_id still matches, increment char_id so client's message wont be cleared.
 	if msg.author ~= sock then
-		local id = findindex(process.characters, msg.id_char) or msg.id_char or 0
+		local id = (findindex(process.characters, msg.id_char) or 1)-1
 		if self.storage[sock].char_id == id then
-			id = (id+1) % #process.characters
+			id = id+1 % #process.characters
 		end
 	end
 	t[#t+1]= id or self.storage[sock].char_id or 0
@@ -410,15 +391,13 @@ output["MSG"] = function(self,sock, msg)
 end
 
 output["SFX"] = function(self,sock, sfx)
-	if not sfx or sfx.wait then
-		self.storage[sock].sfx = sfx
-		return
-	end
+	self.storage[sock].sfx = sfx
+	if not sfx or sfx.wait then return end
 
 	--In AO2, SFX only plays on emotes, so send an empty message to play immediately.
-	local msg = clone(self.storage[sock].lastmsg) or {char = "",name = ""}
+	local msg = clone(self.storage[sock].lastmsg) or {}
 	msg.pre     = nil
-	msg.message = nil
+	msg.message = ""
 	msg.append  = true
 
 	output["MSG"](self,sock, msg)
@@ -431,13 +410,9 @@ output["ANI"] = function(self,sock, ani)
 	end
 	if ani.name == "witnesstestimony" then
 		self:buffer(sock,"RT#testimony1#%")
+		self:buffer(sock,"RT#testimony1#1#%") --I don't want to bother.
 	elseif ani.name == "crossexamination" then
 		self:buffer(sock,"RT#testimony2#%")
-	elseif ani.name == "clear_testimony" then
-		self:buffer(sock,"RT#testimony1#1#%")
-	elseif ani.name == "add_testimony" then
-		self:buffer(sock,"RT#testimony1#0#%")
-		self:buffer(sock,"RT#-#%")
 	elseif ani.name == "notguilty" then
 		self:buffer(sock,"RT#judgeruling#0#%")
 	elseif ani.name == "guilty" then
@@ -474,22 +449,7 @@ end
 output["TAKEN"] = function(self,sock, taken)
 	local t = {}
 	for i,v in ipairs(process.characters) do
-		if not taken then
-			if i % 3 == 0 then
-				t[#t+1] = -1
-			else
-				t[#t+1] = 0
-			end
-		else
-			local take = 0
-			for i2=1,#taken do
-				if taken[i2] == v or taken[i2] == i then
-					take = -1
-					break
-				end
-			end
-			t[#t+1] = take
-		end
+		t[#t+1] = (taken and findindex(taken,v)) and -1 or 0
 	end
 	self:buffer(sock,"CharsCheck#"..table.concat(t,"#").."#%")
 end

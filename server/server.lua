@@ -29,10 +29,6 @@ function server:close()
 	self.socket=nil
 end
 
-function server:send(sock, msg)
-	self.buf[sock] = self.buf[sock] .. msg
-end
-
 function server:update()
 	--Select sockets which are open to receiving/sending data.
 	local recv_t,send_t,err = socket.select(self.sockets,self.sockets, RATE)
