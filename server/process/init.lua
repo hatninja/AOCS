@@ -55,16 +55,18 @@ function process:update()
 		print((usage-collectgarbage("count")).."KiB in memory freed.")
 	end
 
-	--If server is closing.
 	if not server.socket then
-		for k,v in pairs(self.sessions) do
-			self:removeSession(v)
-		end
-		for k,v in pairs(self.clients) do
-			self:removeClient(v)
-		end
-		IPID:save()
+		self:close()
 	end
+end
+function process:close()
+	for k,v in pairs(self.sessions) do
+		self:removeSession(v)
+	end
+	for k,v in pairs(self.clients) do
+		self:removeClient(v)
+	end
+	IPID:save()
 end
 function process:updateSock(sock)
 	local client = self:getClient(sock)
@@ -178,7 +180,11 @@ function process:get(sock,head,...)
 		end
 	end
 	if head == "MUSIC" and self:event("music",session,...) then
-		self:send(area,"MUSIC",...)
+		area.music = ...
+		for k,ses in pairs(area.sessions) do
+			ses.music = area.music
+		end
+		self:send(area,"MUSIC",area.music)
 	end
 	if head == "SIDE" then
 		self:get(sock,"MSG",{message="/pos "..tostring(...)})
@@ -213,12 +219,8 @@ function process:removeSession(ses)
 	log.monitor(monitor_proc,"Removed Session of ID: "..client.id)
 end
 function process:getSession(cli)
-	if type(cli)=="number" then
-		return self.session[cli]
-	elseif type(cli)=="table" then
-		return cli.session, findindex(self:getClients(cli.session or {}),cli)
-	end
-	error("Expecting a client object or session id!",2)
+	if type(cli)~="table" then error("Expecting a client object!",2) end
+	return cli.session, findindex(self:getClients(cli.session or {}),cli)
 end
 function process:getSessions(obj)
 	local t = {}
@@ -319,6 +321,8 @@ function process:newArea(name,type)
 		name     = name or self:genAreaName("New Room"),
 		type     = type,
 		created  = self.uptime,
+		scene    = "",
+		music    = "",
 		_area    = true,
 	}
 	area.id = firstempty(self.areas)
@@ -402,8 +406,14 @@ function process:findMirror(cli)
 end
 
 function process:refresh(user) --Set the current scene
+	local ses = self:getSession(user)
+	local area = self:getArea(session.area)
+	--self:send(user,"CHAR",ses.char)
+
+	--self:send(area,"SCENE")
+	--self:send(area,"MUSIC")
 end
-function process:catchup(user) --Send history
+function process:catchup(cli) --Send history
 end
 
 function process:sendMsg(to,msg,name,char,emote)
