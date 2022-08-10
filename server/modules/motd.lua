@@ -3,7 +3,7 @@ local module = {}
 
 module.callbacks = {}
 module.callbacks.new_session = function(self,cb, ses)
-	if config.motd then
+	if bool(config.motd) then
 		process:sendMsg(ses,config.motd,"MOTD")
 		return
 	end
