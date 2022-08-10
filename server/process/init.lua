@@ -3,6 +3,7 @@ local process = {}
 local MAXMEM = 1024*10 --How much memory to store in KiB.
 
 local IPID = require("process.IPID")
+local replay = require("process.replay")
 
 --[[Initialization]]
 function process:init()
