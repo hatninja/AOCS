@@ -125,7 +125,7 @@ function process:getSocks(obj)
 	return socks
 end
 
-function process:get(sock,head,...)
+function process:get(sock,head,data)
 	local client = self:getClient(sock)
 	if not client then
 		if head == "INFO" then
@@ -144,11 +144,11 @@ function process:get(sock,head,...)
 	local session,index = self:getSession(client)
 	local area = self:getArea(session.area)
 
-	log.monitor(monitor_proc and head ~= "STATUS","Client["..client.id.."]: "..head, each(toprint,...))
+	log.monitor(monitor_proc and head ~= "STATUS","Client["..client.id.."]: "..head, each(toprint,data))
 
 	if head == "CHAR" then
-		self:send(session,"CHAR",...)
-		session.char = ...
+		self:send(session,"CHAR",data)
+		session.char = data
 
 		local taken = {}
 		for k,ses in pairs(area.sessions) do
@@ -156,39 +156,49 @@ function process:get(sock,head,...)
 		end
 		self:send(area,"TAKEN",taken)
 	end
-	if head == "MSG" and self:event("message",session,...) then
-		for k,ses in pairs(area.sessions) do
-			local msg = clone(...)
-			if self:event("messageto",session,ses,msg) then
-				self:send(ses,"MSG",msg)
+	if head == "MSG" then
+		local c = data.message and data.message:sub(1,1)
+		if c ~= "/" and self:event("message",session,data) then
+			for k,ses in pairs(area.sessions) do
+				local msg = clone(data)
+				if self:event("messageto",session,ses,msg) then
+					self:send(ses,"MSG",msg)
+				end
 			end
 		end
+		if c == "/" or c == "!" then
+			local args = split(data.message,"%s+")
+			local cmd = args[1]:sub(2,-1)
+			table.remove(args,1)
+
+			self:event("command",session,cmd,args,data,c=="!" and area or session)
+		end
 	end
-	if head == "SFX" and self:event("sound",session,...) then
+	if head == "SFX" and self:event("sound",session,data) then
 		for k,ses in pairs(area.sessions) do
-			local sfx = clone(...)
+			local sfx = clone(data)
 			if self:event("soundto",session,ses,sfx) then
 				self:send(ses,"SFX",sfx)
 			end
 		end
 	end
-	if head == "ANI" and self:event("animation",session,...) then
+	if head == "ANI" and self:event("animation",session,data) then
 		for k,ses in pairs(area.sessions) do
-			local ani = clone(...)
+			local ani = clone(data)
 			if self:event("animationto",session,ses,ani) then
 				self:send(ses,"ANI",ani)
 			end
 		end
 	end
-	if head == "MUSIC" and self:event("music",session,...) then
-		area.music = ...
+	if head == "MUSIC" and self:event("music",session,data) then
+		area.music = data
 		for k,ses in pairs(area.sessions) do
 			ses.music = area.music
 		end
 		self:send(area,"MUSIC",area.music)
 	end
 	if head == "SIDE" then
-		self:get(sock,"MSG",{message="/pos "..tostring(...)})
+		self:get(sock,"MSG",{message="/pos "..tostring(data)})
 	end
 	if head == "STATUS" then
 		self:send(sock,"STATUS",
