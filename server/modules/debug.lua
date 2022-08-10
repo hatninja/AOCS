@@ -29,7 +29,7 @@ module.callbacks.message = function(self,cb, from,msg)
 	end
 
 	if msg.message and msg.message:sub(1,3) == "lua" then
-		local chunk,err = load(msg.message:sub(4,-1))
+		local chunk,err = loadstring(msg.message:sub(4,-1))
 		if chunk then
 			process:sendMsg(from,"Executing lua...","debug")
 			local value,err = safe(chunk)

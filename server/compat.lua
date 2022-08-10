@@ -20,6 +20,9 @@ sha1 = require("lib.sha1")
 if table.unpack then
 	unpack = table.unpack
 end
+if not loadstring then
+	loadstring = load
+end
 
 math.randomseed(os.time())
 math.random();math.random()
