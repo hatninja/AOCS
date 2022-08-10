@@ -408,7 +408,7 @@ end
 
 function process:refresh(user) --Set the current scene
 	local ses = self:getSession(user)
-	local area = self:getArea(session.area)
+	local area = self:getArea(ses.area)
 	--self:send(user,"CHAR",ses.char)
 
 	--self:send(area,"SCENE")

@@ -332,13 +332,11 @@ output["MSG"] = function(self,sock, msg)
 	t[#t+1]= 1 --emote_mod
 
 	--If this client isn't the author but char_id still matches, increment char_id so client's message wont be cleared.
-	if msg.author ~= sock then
-		local id = (findindex(process.characters, msg.id_char) or 1)-1
-		if self.storage[sock].char_id == id then
-			id = id+1 % #process.characters
-		end
+	local id = findindex(process.characters, msg.id_char)
+	if id and msg.author ~= sock and self.storage[sock].char_id == id-1 then
+		id = id+1 % #process.characters
 	end
-	t[#t+1]= id or self.storage[sock].char_id or 0
+	t[#t+1]= (id or 1)-1
 
 	t[#t+1]= sfx.delay or 0
 
